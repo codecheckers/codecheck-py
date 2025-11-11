@@ -12,7 +12,10 @@
       "Bash(fi)",
       "Bash(chmod:*)",
       "WebFetch(domain:mybinder.org)",
-      "Bash(python3 -m json.tool:*)"
+      "Bash(python3 -m json.tool:*)",
+      "Bash(CI=true python -m pytest:*)",
+      "Bash(export CI=true)",
+      "Bash(env CI=true python -m pytest:*)"
     ],
     "deny": [],
     "ask": []
