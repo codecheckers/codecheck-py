@@ -1,0 +1,12 @@
+name: codecheck-env
+channels:
+  - default
+dependencies:
+  - nbconvert=6
+  - notebook=6
+  - jupytext=1.11
+  - matplotlib=3.4
+  - pandas=1.2.4
+  - tabulate=0.8
+  - pandoc=2.10
+ 
