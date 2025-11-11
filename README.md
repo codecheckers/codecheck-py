@@ -1,10 +1,25 @@
 # codecheck-py
 
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/codecheckers/codecheck-py/main?labpath=.codecheck/codecheck.ipynb)
+
 Python-based template for writing [CODECHECK](https://codecheck.org.uk)
 certificates.
 
 Note that this is an **alpha version**, please report any issues in the
 [issue tracker](https://github.com/codecheckers/codecheck-py/issues).
+
+## Try it Online
+
+**🚀 Launch on Binder**: Click the badge above to try this template in your browser without installing anything! The Binder environment includes all dependencies and opens an interactive notebook to explore the template.
+
+### What You Can Do on Binder
+
+- **Explore the template**: Run the certificate generation notebook
+- **Test validation**: Try the validation system with example data
+- **Experiment**: Modify code and see results immediately
+- **Learn**: Follow the workflow without local setup
+
+**Note**: Binder environments are temporary and reset when idle. For actual CODECHECK work, clone the repository locally.
 
 ## Usage
 
