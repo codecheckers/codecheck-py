@@ -274,7 +274,7 @@ class ManifestProcessor:
                 continue
 
             # Ensure normalized path doesn't escape
-            normalized = Path(file_path).resolve()
+            normalized = (self.outputs_dir / file_path).resolve()
             try:
                 normalized.relative_to(self.outputs_dir.resolve())
             except ValueError:

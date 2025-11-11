@@ -9,9 +9,9 @@ paper:
       ORCID: 0000-0002-1825-0097
     - name: John Smith
       ORCID: 0000-0001-5109-3700
-  reference: https://doi.org/10.1234/example
+  reference: https://doi.org/10.1234/testpaper
 
-repository: https://github.com/example/repo
+repository: https://github.com/testuser/test-repo
 check_time: "2023-11-15T14:30:00"
 summary: This is a valid test configuration.
 

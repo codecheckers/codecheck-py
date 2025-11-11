@@ -4,7 +4,12 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:raw.githubusercontent.com)",
       "Bash(python -m pip install:*)",
-      "Bash(python -m pytest:*)"
+      "Bash(python -m pytest:*)",
+      "Bash(cat:*)",
+      "Bash(python -m json.tool:*)",
+      "Bash(if [ -f codecheck_logo.png ])",
+      "Bash(then mv codecheck_logo.png .codecheck/)",
+      "Bash(fi)"
     ],
     "deny": [],
     "ask": []

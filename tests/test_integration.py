@@ -6,6 +6,10 @@ from pathlib import Path
 import tempfile
 import shutil
 import yaml
+import sys
+
+# Add .codecheck to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent / '.codecheck'))
 from codecheck import Codecheck
 
 
@@ -199,14 +203,22 @@ def test_summary_table_method(temp_workspace):
 
 def test_files_method(temp_workspace):
     """Test the files() method"""
-    check = Codecheck(
-        manifest_file=str(temp_workspace / 'codecheck.yml'),
-        validate=False
-    )
+    import os
+    old_cwd = os.getcwd()
+    try:
+        # Change to codecheck directory as the notebook would
+        os.chdir(temp_workspace / 'codecheck')
 
-    files_table = check.files()
-    # Should return Markdown object
-    assert files_table is not None
+        check = Codecheck(
+            manifest_file=str(temp_workspace / 'codecheck.yml'),
+            validate=False
+        )
+
+        files_table = check.files()
+        # Should return Markdown object
+        assert files_table is not None
+    finally:
+        os.chdir(old_cwd)
 
 
 def test_summary_method(temp_workspace):

@@ -18,15 +18,31 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Install dependencies
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y texlive-xetex texlive-fonts-recommended texlive-plain-generic pandoc
+
+    - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pytest pytest-cov pyyaml pandas requests
+        pip install pytest pytest-cov pyyaml pandas requests jupyter nbconvert
 
     - name: Run tests with pytest
       run: |
         pytest tests/ -v --cov=. --cov-report=term-missing
+      env:
+        CI: true
 
     - name: Display coverage summary
       run: |
         coverage report
+
+    - name: Upload test PDF artifact
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-codecheck-certificate
+        path: test-artifacts/test-codecheck-certificate.pdf
+        if-no-files-found: warn
+        retention-days: 30

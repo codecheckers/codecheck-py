@@ -3,13 +3,13 @@ Configuration constants for codecheck.yml validation
 """
 
 # Required fields according to CODECHECK spec
-MANDATORY_FIELDS = ['manifest', 'codechecker', 'report']
+MANDATORY_FIELDS = ['manifest', 'codechecker', 'report', 'version', 'paper', 'repository', 'check_time', 'certificate', 'summary']
 
-# Recommended fields for complete certificates
-RECOMMENDED_FIELDS = ['version', 'paper', 'repository', 'check_time', 'certificate']
+# Recommended fields for complete certificates (now empty - all promoted to mandatory)
+RECOMMENDED_FIELDS = []
 
 # Optional but recognized fields
-OPTIONAL_FIELDS = ['summary', 'source']
+OPTIONAL_FIELDS = ['source']
 
 # Placeholder patterns that indicate incomplete configuration
 PLACEHOLDER_PATTERNS = {

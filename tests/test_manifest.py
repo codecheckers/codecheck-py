@@ -5,6 +5,10 @@ import pytest
 from pathlib import Path
 import tempfile
 import shutil
+import sys
+
+# Add .codecheck to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent / '.codecheck'))
 from manifest import ManifestProcessor
 
 
