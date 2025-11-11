@@ -9,4 +9,8 @@ dependencies:
   - pandas=1.2.4
   - tabulate=0.8
   - pandoc=2.10
+  - pyyaml
+  - pytest>=7.0
+  - pytest-cov
+  - requests
  

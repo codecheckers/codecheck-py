@@ -4,9 +4,13 @@ https://codecheck.org.uk
 """
 from datetime import datetime
 import os.path as op
+from pathlib import Path
 import yaml
 from IPython.display import Markdown, Latex
 import pandas as pd
+
+from validation import CodecheckValidator
+from manifest import ManifestProcessor
 
 
 def name_orcid(entry):
@@ -20,17 +24,47 @@ class Codecheck:
     based on a `codecheck.yml` file.
     """
 
-    def __init__(self, manifest_file=op.join("..", "codecheck.yml")):
+    def __init__(self, manifest_file=op.join("..", "codecheck.yml"),
+                 validate=False, strict=False):
         """
-        Create new `Codecheck` object.
-        
+        Create new `Codecheck` object with optional validation.
+
         Parameters
         ----------
         manifest_file : str, optional
             The path/name of the `codecheck.yml` file. Defaults to `../codecheck.yml`.
+        validate : bool, optional
+            Whether to run validation on initialization. Defaults to False.
+            Set to True to validate configuration before processing.
+        strict : bool, optional
+            If True, raises error on validation failure (when validate=True).
+            If False, only warnings are issued. Defaults to False.
         """
+        self.manifest_file = manifest_file
+        self.validator = CodecheckValidator(manifest_file)
+        self.manifest_processor = None
+
+        # Optionally validate on initialization
+        if validate:
+            passed, issues = self.validator.validate_all(
+                check_manifest=False,  # Don't check files until explicitly requested
+                strict=strict
+            )
+            if not passed and strict:
+                raise ValueError(
+                    f"Validation failed for {manifest_file}:\n{self.validator.format_report(markdown=False)}"
+                )
+
         with open(manifest_file) as f:
             self.conf = yaml.safe_load(f)
+
+        # Initialize manifest processor if manifest exists
+        if self.conf and 'manifest' in self.conf:
+            base_dir = Path(manifest_file).parent
+            self.manifest_processor = ManifestProcessor(
+                self.conf['manifest'],
+                base_dir
+            )
 
     def title(self):
         """
@@ -177,3 +211,133 @@ This certificate confirms that the codechecker could independently reproduce the
                 ]
             )
         return Latex("\n".join(full_text))
+
+    def validate(self, check_manifest=True, check_register=True, strict=False):
+        """
+        Run validation checks on the codecheck.yml file.
+
+        Parameters
+        ----------
+        check_manifest : bool, optional
+            Whether to check if manifest files exist in outputs/. Defaults to True.
+        check_register : bool, optional
+            Whether to check for GitHub register issue. Defaults to True.
+        strict : bool, optional
+            If True, warnings are treated as failures. Defaults to False.
+
+        Returns
+        -------
+        tuple
+            (passed: bool, issues: List[ValidationIssue])
+        """
+        return self.validator.validate_all(
+            check_manifest=check_manifest,
+            check_register=check_register,
+            strict=strict
+        )
+
+    def validation_report(self, markdown=True):
+        """
+        Display validation report.
+
+        Parameters
+        ----------
+        markdown : bool, optional
+            If True, return Markdown formatted report. Otherwise plain text.
+            Defaults to True.
+
+        Returns
+        -------
+        Markdown or str
+            Formatted validation report
+        """
+        report = self.validator.format_report(markdown=markdown)
+        if markdown:
+            return Markdown(report)
+        else:
+            return report
+
+    def validate_manifest_files(self):
+        """
+        Validate that all manifest files exist in outputs/ directory.
+
+        Returns
+        -------
+        tuple
+            (all_exist: bool, missing_files: List[str])
+        """
+        if not self.manifest_processor:
+            return False, []
+        return self.manifest_processor.validate_output_files_exist()
+
+    def manifest_summary(self):
+        """
+        Get summary statistics about the manifest.
+
+        Returns
+        -------
+        Markdown
+            Formatted manifest summary with file counts, sizes, and types
+        """
+        if not self.manifest_processor:
+            return Markdown("*No manifest found*")
+
+        summary = self.manifest_processor.get_manifest_summary()
+
+        markdown = f"""### Manifest Summary
+
+- **Total files**: {summary['total_files']}
+- **Total size**: {summary['total_size']:,} bytes ({summary['total_size_mb']} MB)
+- **Files with comments**: {summary['has_comments']}
+
+**File types:**
+"""
+        for ext, count in sorted(summary['file_types'].items()):
+            ext_display = ext if ext else "(no extension)"
+            markdown += f"- `{ext_display}`: {count} file(s)\n"
+
+        return Markdown(markdown)
+
+    def copy_manifest_files(self, source_dir=None, keep_full_path=True,
+                          overwrite=True, dry_run=False):
+        """
+        Copy manifest files from source to outputs directory.
+
+        Parameters
+        ----------
+        source_dir : str or Path, optional
+            Source directory containing files. Defaults to parent of config file.
+        keep_full_path : bool, optional
+            If True, maintain directory structure. If False, flatten. Defaults to True.
+        overwrite : bool, optional
+            If True, overwrite existing files. Defaults to True.
+        dry_run : bool, optional
+            If True, don't actually copy files. Defaults to False.
+
+        Returns
+        -------
+        Markdown
+            Report of copied files
+        """
+        if not self.manifest_processor:
+            return Markdown("*No manifest found*")
+
+        if source_dir is None:
+            source_dir = Path(self.manifest_file).parent
+
+        copied = self.manifest_processor.copy_manifest_files(
+            source_dir=source_dir,
+            keep_full_path=keep_full_path,
+            overwrite=overwrite,
+            dry_run=dry_run
+        )
+
+        if not copied:
+            return Markdown("*No files copied*")
+
+        markdown = f"### Copied {len(copied)} file(s)\n\n"
+        for entry in copied:
+            size_kb = entry['size'] / 1024
+            markdown += f"- `{entry['file']}` ({size_kb:.1f} KB)\n"
+
+        return Markdown(markdown)
