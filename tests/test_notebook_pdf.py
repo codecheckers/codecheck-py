@@ -232,9 +232,12 @@ def test_notebook_pdf_generation(pdf_workspace):
 
         # If running in CI, save PDF for artifact upload
         if os.getenv('CI') == 'true':
-            artifact_dir = Path('test-artifacts')
+            # Get repository root (parent of tests directory)
+            repo_root = Path(__file__).parent.parent
+            artifact_dir = repo_root / 'test-artifacts'
             artifact_dir.mkdir(exist_ok=True)
             shutil.copy2(pdf_path, artifact_dir / 'test-codecheck-certificate.pdf')
+            print(f"✓ Saved test PDF to {artifact_dir / 'test-codecheck-certificate.pdf'}")
 
     except subprocess.TimeoutExpired:
         pytest.skip("PDF generation timed out")
