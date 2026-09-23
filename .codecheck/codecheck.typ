@@ -22,6 +22,13 @@
   weight: "bold"
 )
 
+#show raw.where(block: false): box.with(
+  fill: luma(248),
+  radius: 0pt,
+  inset: (x: 5pt, y: 3pt),
+  baseline: 3pt
+)
+
 #show raw.where(block: true): block.with(
   fill: luma(248),
   inset: 10pt,
