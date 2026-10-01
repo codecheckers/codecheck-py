@@ -2,16 +2,17 @@
 Helper module to prepare a CODECHECK report
 https://codecheck.org.uk
 """
-from datetime import datetime
 import os.path as op
-from pathlib import Path
-import yaml
-from IPython.display import Markdown
 import pandas as pd
 import session_info2 as si
+import warnings
+import yaml
+from IPython.display import Markdown
+from datetime import datetime
+from pathlib import Path
 
-from validation import CodecheckValidator
 from manifest import ManifestProcessor
+from validation import CodecheckValidator
 
 
 def name_orcid(entry):
@@ -187,13 +188,17 @@ This certificate confirms that the codechecker could independently reproduce the
 """
 )
 
-    def csv_files(self, **kwds):
+    def csv_files(self, max_rows=15, max_cols=50, **kwds):
         """
         Markdown summary of all `.csv` files in the manifest. Prints the output of Panda's `describe` function (number of entries, mean, quantiles, etc.)
         for each column.
         
         Parameters
         ----------
+        max_rows: int
+            Limit of rows to display. Defaults to `15`.
+        max_cols: int
+            Limit of columns to display. Defaults to `50`.
         **kwds
             Additional arguments (e.g. index_col=False) that will be handed over to Panda's `read_csv` function.
         """
@@ -203,7 +208,10 @@ This certificate confirms that the codechecker could independently reproduce the
             if not fname.endswith(".csv"):
                 continue
             comment = entry.get("comment", None)
-            df = pd.read_csv(op.join("outputs", fname), **kwds)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", pd.errors.DtypeWarning)
+                df = pd.read_csv(op.join("outputs", fname), nrows=max_rows, **kwds)
+                df = df.iloc[:, :max_cols]
             markdown = f"""### `{fname}`
 {('Author comment: *' + comment + '*') if comment else ' '}
 
