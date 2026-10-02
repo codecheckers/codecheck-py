@@ -595,7 +595,8 @@ class CodecheckValidator:
                 level='error',
                 field='manifest',
                 message=f"Missing {len(missing_files)} file(s) in outputs/: {listing(missing_files)}",
-                suggestion=f"Copy all manifest files to the {outputs_dir.parent.name}/outputs/ directory"
+                suggestion=f"Copy all manifest files to the {outputs_dir.parent.name}/outputs/ directory, "
+                           "e.g. with `check.copy_manifest_files()` in the notebook"
             ))
 
         return outputs_dir.exists() and not (missing_files or outside_files)

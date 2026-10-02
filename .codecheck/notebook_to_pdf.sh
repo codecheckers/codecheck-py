@@ -13,7 +13,13 @@ fi
 
 # Convert notebook to Markdown
 echo "[CODECHECK - Py] Converting $NOTEBOOK.ipynb to Markdown..."
-jupyter nbconvert --to markdown --no-input --no-prompt --execute "$NOTEBOOK.ipynb"
+# Execute first, then convert: nbconvert removes tagged outputs before it executes, so this needs two steps.
+# Outputs of cells tagged `remove-output` (e.g. the copy report for the codechecker) are not in the certificate.
+EXECUTED="${NOTEBOOK}.executed.ipynb"
+jupyter nbconvert --to notebook --execute --output "$EXECUTED" "$NOTEBOOK.ipynb"
+jupyter nbconvert --to markdown --no-input --no-prompt --output "$NOTEBOOK" \
+    --TagRemovePreprocessor.enabled=True --TagRemovePreprocessor.remove_all_outputs_tags='["remove-output"]' "$EXECUTED"
+rm "$EXECUTED"
 
 # Wait until Markdown is created
 echo "[CODECHECK - Py] Waiting for $MARKDOWN_FILE to be created..."

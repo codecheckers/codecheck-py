@@ -3,14 +3,13 @@ Tests for Codecheck.manifest_files() (renderers by file type) and Codecheck.git_
 """
 import json
 import shutil
-import subprocess
 
 import pytest
 import yaml
 
 from codecheck import Codecheck
 
-from .conftest import BASE_IMAGE, section
+from .conftest import BASE_IMAGE, git_commit_all, requires_git, section
 
 
 @pytest.fixture
@@ -133,13 +132,10 @@ def test_csv_files_only_shows_csv(workspace):
     assert "### `data.csv`" in md and "data.tsv" not in md and "plot.png" not in md
 
 
+@requires_git
 def test_git_info_in_repository(workspace):
     repo = workspace.parent
-    run = lambda *a: subprocess.run(['git', '-C', str(repo), *a], check=True, capture_output=True)
-    run('init', '-q')
-    run('add', 'codecheck.yml')
-    run('-c', 'user.name=t', '-c', 'user.email=t@example.org', 'commit', '-q', '-m', 'init')
-    sha = subprocess.run(['git', '-C', str(repo), 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip()
+    sha = git_commit_all(repo, 'codecheck.yml')
 
     assert f"based on the commit `{sha}`" in Codecheck().git_info().data
     assert "uncommitted" not in Codecheck().git_info().data
@@ -149,8 +145,7 @@ def test_git_info_in_repository(workspace):
     assert "uncommitted" not in Codecheck().git_info().data
 
     (repo / 'analysis.py').write_text('print(1)\n')
-    run('add', 'analysis.py')
-    run('-c', 'user.name=t', '-c', 'user.email=t@example.org', 'commit', '-q', '-m', 'code')
+    git_commit_all(repo, 'analysis.py')
     (repo / 'analysis.py').write_text('print(2)\n')
     assert "uncommitted changes" in Codecheck().git_info().data
 

@@ -2,6 +2,8 @@
 Shared fixtures. All test images are converted from one tiny base image, `tests/data/base.png` (24x16 px).
 """
 import base64
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -49,3 +51,17 @@ def image_dir(tmp_path_factory):
 def section(markdown, fname):
     """The part of the `manifest_files()` output that belongs to one file."""
     return markdown.split(f"### `{fname}`")[1].split("### `")[0]
+
+
+requires_git = pytest.mark.skipif(shutil.which('git') is None, reason='git is not installed')
+
+
+def git_commit_all(repo, *paths):
+    """`git init` in `repo` (no-op if it is a repository already) and commit `paths`; returns the commit SHA."""
+    def run(*args):
+        return subprocess.run(['git', '-C', str(repo), '-c', 'user.name=t', '-c', 'user.email=t@example.org', *args],
+                              check=True, capture_output=True, text=True).stdout.strip()
+    run('init', '-q')
+    run('add', *paths)
+    run('commit', '-q', '-m', 'init')
+    return run('rev-parse', 'HEAD')

@@ -88,7 +88,7 @@ From within the `.codecheck/` directory:
 ```bash
 sh notebook_to_pdf.sh
 ```
-The script (1) deletes the old `codecheck.md`, (2) runs `jupyter nbconvert --to markdown --no-input --no-prompt --execute codecheck.ipynb`, (3) runs `typst compile codecheck.typ` to produce `codecheck.pdf`. The whole executed notebook output becomes one Markdown file, so anything large printed by a cell ends up in the Typst compile.
+The script (1) deletes the old `codecheck.md`, (2) executes the notebook with `jupyter nbconvert --to notebook --execute` into a temporary `codecheck.executed.ipynb` and converts that with `--to markdown --no-input --no-prompt`, removing the outputs of cells tagged `remove-output` (two steps because the `TagRemovePreprocessor` runs before execution), (3) runs `typst compile codecheck.typ` to produce `codecheck.pdf`. The whole executed notebook output becomes one Markdown file, so anything large printed by a cell ends up in the Typst compile.
 
 ### Tests
 
@@ -134,6 +134,7 @@ Choose the level of steps 2 and 3 by the extent of the change:
 ### Manifest File Handling
 - `manifest_files(max_rows=15, max_cols=50, max_lines=50, describe=True, head=0, **kwds)` renders one section per manifest entry via `_render_manifest_entry()`, dispatching on the lower-case extension (`TABULAR_SEPARATORS`, `EXCEL_EXTENSIONS`, `TEXT_EXTENSIONS`, `IMAGE_EXTENSIONS` constants in `codecheck.py`). Every section has size, mtime and SHA-256 (`_file_info()` streams the file in chunks). Missing files and exceptions become a message in the section, so one bad file never stops the build.
 - Tables: only the first `max_rows` rows and `max_cols` columns are parsed (`nrows`/`usecols`), so output size does not depend on file size; `nrows`/`usecols` in `**kwds` take precedence. Text/JSON: first `max_lines` lines, lines cut at 200 characters, JSON > 1 MB is not parsed (shown as plain text). Images are embedded as `![](<outputs/file>)`; Typst supports png/jpg/gif/svg/pdf but not EPS.
+- `copy_manifest_files(update=...)` copies manifest files from the repo into `outputs/`; the notebook calls it (cell with `COPY_OUTPUTS = True`) so every build refreshes the copies (issue #14). `update=True` only replaces older files (like `rsync -u`). The report marks files tracked by git and unchanged since HEAD (`_git_unchanged()`, maybe not reproduced). `_git()` runs git in `Codecheck.repo_dir`, the directory of `codecheck.yml` (also used by `git_info()`).
 - `csv_files()` is `manifest_files()` restricted to `.csv`. Background: issue #16 (40 MB Markdown made Typst run out of memory).
 - `git_info()` runs `git -C <dir of codecheck.yml> rev-parse HEAD`; for the "uncommitted changes" note untracked files (`outputs/`) and the CODECHECK files themselves (`.codecheck/`, `codecheck/`, `codecheck.yml`) are ignored.
 

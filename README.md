@@ -65,6 +65,20 @@ be copied to `.codecheck/outputs/`, **keeping the path from the manifest**. The
 manifest paths are relative to the repository root, so a manifest entry
 `figures/image.png` has to be placed at `.codecheck/outputs/figures/image.png`.
 
+You don't have to do this by hand: the notebook copies the manifest files from
+the repository into `outputs/` every time it runs (`check.copy_manifest_files(update=True)`),
+so a rebuilt certificate never uses old copies. `update=True` keeps a file in `outputs/` that is
+newer than the one in the repository. Files that git tracks and that have not changed since the
+last commit are marked in the report ("was it reproduced?"), because then the copy is
+probably the authors' original rather than your result. This report is only shown in
+the notebook, not in the certificate. If your results are not in the repository
+(e.g. computed on another machine or in a container), copy them into `outputs/` yourself and set
+`COPY_OUTPUTS = False` in the notebook.
+
+Why a separate `outputs/` directory? Typst can only read files inside `.codecheck/`, so
+the figures in the certificate must be there; and `outputs/` keeps the files you
+reproduced apart from the authors' files, as the record that goes with the certificate.
+
 ### 5. Fill in the notebook and create the certificate
 
 Open `.codecheck/codecheck.ipynb` (e.g. `jupyter lab .codecheck/codecheck.ipynb`), fill in
@@ -75,8 +89,8 @@ cd .codecheck
 sh notebook_to_pdf.sh
 ```
 
-The script runs the notebook (hiding the code cells) into `codecheck.md` with
-`jupyter nbconvert`, and then compiles `codecheck.typ` with `typst` into
+The script runs the notebook (hiding the code cells, and the output of cells tagged
+`remove-output`) into `codecheck.md` with `jupyter nbconvert`, and then compiles `codecheck.typ` with `typst` into
 `codecheck.pdf`. It stops with an error if `codecheck.md` is larger than 5 MB
 (set `MAX_MD_BYTES` to change that limit), which usually means that very large
 output (e.g. big tables) ended up in the report.
@@ -308,7 +322,7 @@ table (`check.find_certificate_id(name="Surname")` searches for another name).
 ## ❌ Errors (2)
 
 - **manifest**: Missing 2 file(s) in outputs/: figures/plot1.png, data/results.csv
-  - *Suggestion*: Copy all manifest files to .codecheck/outputs/ directory
+  - *Suggestion*: Copy all manifest files to the .codecheck/outputs/ directory, e.g. with `check.copy_manifest_files()`
 
 - **codechecker.name**: Codechecker name is missing
   - *Suggestion*: Add name field for codechecker

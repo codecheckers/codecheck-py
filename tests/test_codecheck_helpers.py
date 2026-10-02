@@ -8,6 +8,8 @@ import yaml
 import codecheck as cc
 from codecheck import Codecheck
 
+from .conftest import git_commit_all, requires_git
+
 VALID = {
     'version': 'https://codecheck.org.uk/spec/config/1.0/',
     'certificate': '2023-001',
@@ -90,6 +92,19 @@ def test_copy_manifest_files(workspace):
     assert 'data/a.csv' in check.copy_manifest_files().data
     assert (workspace / '.codecheck' / 'outputs' / 'data' / 'a.csv').exists()
     assert 'No files copied' in check.copy_manifest_files(source_dir=workspace / 'nowhere').data
+
+
+@requires_git
+def test_copy_manifest_files_notes_files_unchanged_in_git(workspace):
+    git_commit_all(workspace, 'data/a.csv', 'codecheck.yml')
+    check = Codecheck()
+    report = check.copy_manifest_files().data
+    assert 'Copied 1 file(s)' in report and 'Unchanged since commit' in report  # the committed original
+    report = check.copy_manifest_files(update=True).data  # nothing to copy, the note stays
+    assert 'No files copied' in report and 'Unchanged since commit' in report and '`data/a.csv`' in report
+    (workspace / 'data' / 'a.csv').write_text('x,y\n5,6\n')  # reproduced: differs from the commit
+    report = check.copy_manifest_files().data
+    assert 'Copied 1 file(s)' in report and 'Unchanged since commit' not in report
 
 
 def test_methods_without_manifest(tmp_path, monkeypatch):

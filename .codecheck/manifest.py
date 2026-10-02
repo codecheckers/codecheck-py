@@ -177,7 +177,8 @@ class ManifestProcessor:
                            source_dir: Optional[Path] = None,
                            keep_full_path: bool = True,
                            overwrite: bool = True,
-                           dry_run: bool = False) -> List[Dict]:
+                           dry_run: bool = False,
+                           update: bool = False) -> List[Dict]:
         """
         Copy manifest files to outputs directory.
 
@@ -192,6 +193,9 @@ class ManifestProcessor:
             If True, overwrite existing files. Defaults to True.
         dry_run : bool, optional
             If True, don't actually copy files. Defaults to False.
+        update : bool, optional
+            If True, replace an existing file only if the source is newer (like `rsync --update`), so a file that
+            was reproduced directly into outputs/ is not replaced by an older original. Defaults to False.
 
         Returns
         -------
@@ -224,6 +228,8 @@ class ManifestProcessor:
             # Check if we should overwrite; never write through a symlink to the source or out of outputs/
             if dst.exists() and (not overwrite or dst.samefile(src)):
                 continue
+            if update and dst.exists() and src.stat().st_mtime <= dst.stat().st_mtime:
+                continue  # the copy in outputs/ is up to date or newer
             if not dst.resolve().is_relative_to(self.outputs_dir.resolve()):
                 continue
 

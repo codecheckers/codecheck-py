@@ -1,6 +1,7 @@
 """
 Tests for manifest processing module
 """
+import os
 import pytest
 from pathlib import Path
 import tempfile
@@ -348,6 +349,23 @@ def test_copy_manifest_files_defaults_to_base_dir_and_creates_outputs(tmp_path):
     copied = processor.copy_manifest_files()  # no source_dir, outputs/ does not exist yet
     assert [c['file'] for c in copied] == ['data/results.csv']  # the missing source file is skipped
     assert (tmp_path / '.codecheck' / 'outputs' / 'data' / 'results.csv').read_text() == 'a\n1\n'
+
+
+def test_copy_manifest_files_update_keeps_newer_outputs(tmp_path):
+    """update=True does not replace a file in outputs/ by an older source, but by a newer one."""
+    (tmp_path / 'a.csv').write_text('original\n')
+    (tmp_path / '.codecheck' / 'outputs').mkdir(parents=True)
+    dst = tmp_path / '.codecheck' / 'outputs' / 'a.csv'
+    dst.write_text('reproduced\n')
+    os.utime(tmp_path / 'a.csv', (1000, 1000))
+    os.utime(dst, (2000, 2000))
+    processor = ManifestProcessor([{'file': 'a.csv'}], tmp_path)
+    assert processor.copy_manifest_files(update=True) == []
+    assert dst.read_text() == 'reproduced\n'
+    os.utime(tmp_path / 'a.csv', (3000, 3000))
+    assert len(processor.copy_manifest_files(update=True)) == 1
+    assert dst.read_text() == 'original\n'
+    assert processor.copy_manifest_files(update=True) == []  # copy2 keeps the mtime: up to date
 
 
 def test_dry_run_does_not_create_outputs_dir(tmp_path):

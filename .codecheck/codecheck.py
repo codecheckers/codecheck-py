@@ -2,6 +2,7 @@
 Helper module to prepare a CODECHECK report
 https://codecheck.org.uk
 """
+import filecmp
 import hashlib
 import itertools
 import json
@@ -17,7 +18,7 @@ from IPython.display import Markdown
 from datetime import datetime
 from pathlib import Path
 
-from manifest import ManifestProcessor, find_outputs_dir, output_path
+from manifest import ManifestProcessor, existing_file, find_outputs_dir, manifest_file_paths, output_path
 from register import certificate_candidates, fetch_register_issues, first_author_surname, markdown_row
 from validation import CodecheckValidator
 from validation_config import TEMPLATE_DIRS, as_list
@@ -109,6 +110,7 @@ class Codecheck:
         # Reproduced files: `outputs/` in the working directory (the template directory, where the notebook runs and
         # Typst compiles), otherwise `.codecheck/outputs` or `codecheck/outputs` next to `codecheck.yml` (e.g. Binder)
         base_dir = Path(manifest_file).parent
+        self.repo_dir = base_dir.resolve()  # where git runs and the manifest paths start
         outputs_dir = Path("outputs") if op.isdir("outputs") else find_outputs_dir(base_dir)
         self.outputs_dir = Path(op.abspath(outputs_dir))  # no resolve(): a symlinked outputs/ keeps its link path
 
@@ -434,21 +436,36 @@ This certificate confirms that the codechecker could independently reproduce the
         return self.manifest_files(max_rows=max_rows, max_cols=max_cols, describe=describe, head=head,
                                    extensions=(".csv",), **kwds)
 
+    def _git(self, *args):
+        """Run git in the directory of `codecheck.yml`; raises OSError or TimeoutExpired if git is not available."""
+        return subprocess.run(["git", "-C", str(self.repo_dir), *args], capture_output=True, text=True, timeout=10)
+
+    def _git_unchanged(self, files):
+        """
+        The `files` (paths relative to the directory of `codecheck.yml`) that are tracked by git and have no changes
+        compared to the last commit, and the short commit SHA. Empty if git or the repository are not available.
+        """
+        try:
+            commit = self._git("rev-parse", "--short", "HEAD")
+            tracked = self._git("--literal-pathspecs", "ls-files", "-z", "--", *files)
+            changed = self._git("--literal-pathspecs", "diff", "-z", "--name-only", "--relative", "HEAD", "--", *files)
+        except (OSError, subprocess.TimeoutExpired):
+            commit = None
+        if commit is None or any(r.returncode != 0 for r in (commit, tracked, changed)):
+            return set(), None
+        unchanged = set(tracked.stdout.split('\0')) - set(changed.stdout.split('\0'))  # -z: no quoting of names
+        return {f for f in files if Path(op.normpath(f)).as_posix() in unchanged}, commit.stdout.strip()
+
     def git_info(self):
         """
         Markdown sentence with the git commit that this check is based on (the repository that contains
         `codecheck.yml`). Reports if the information is not available (e.g. no git repository).
         """
-        repo_dir = Path(self.manifest_file).resolve().parent
-
-        def git(*args):
-            return subprocess.run(["git", "-C", str(repo_dir), *args], capture_output=True, text=True, timeout=10)
-
         try:
-            commit = git("rev-parse", "HEAD")
+            commit = self._git("rev-parse", "HEAD")
             # the codechecker's own files (template, certificate config) are changed by definition, ignore them
             ignore = [f":(exclude){name}" for name in (*TEMPLATE_DIRS, "codecheck.yml")]
-            status = git("status", "--porcelain", "--untracked-files=no", "--", ".", *ignore)
+            status = self._git("status", "--porcelain", "--untracked-files=no", "--", ".", *ignore)
             dirty = commit.returncode == 0 and bool(status.stdout.strip())
         except (OSError, subprocess.TimeoutExpired):
             commit = None
@@ -599,7 +616,7 @@ Certificate | Issue | State | Assignees
         return Markdown(markdown)
 
     def copy_manifest_files(self, source_dir=None, keep_full_path=True,
-                          overwrite=True, dry_run=False):
+                          overwrite=True, dry_run=False, update=False):
         """
         Copy manifest files from source to outputs directory.
 
@@ -613,34 +630,42 @@ Certificate | Issue | State | Assignees
             If True, overwrite existing files. Defaults to True.
         dry_run : bool, optional
             If True, don't actually copy files. Defaults to False.
+        update : bool, optional
+            If True, replace a file in outputs/ only if the source is newer. Defaults to False.
 
         Returns
         -------
         Markdown
-            Report of copied files
+            Report of the copied files and of the files in outputs/ that are tracked by git and unchanged since the
+            last commit (were they reproduced?)
         """
         if not self.manifest_processor:
             return Markdown("*No manifest found*")
 
         if source_dir is None:
-            source_dir = Path(self.manifest_file).parent
+            source_dir = self.repo_dir
 
         copied = self.manifest_processor.copy_manifest_files(
             source_dir=source_dir,
             keep_full_path=keep_full_path,
             overwrite=overwrite,
-            dry_run=dry_run
+            dry_run=dry_run,
+            update=update
         )
+        lines = [f"- `{e['file']}` ({e['size'] / 1024:.1f} KB)" for e in copied]
+        parts = [f"Copied {len(copied)} file(s) to the outputs directory." if copied else "*No files copied*",
+                 "\n".join(lines)]
 
-        if not copied:
-            return Markdown("*No files copied*")
-
-        markdown = f"### Copied {len(copied)} file(s)\n\n"
-        for entry in copied:
-            size_kb = entry['size'] / 1024
-            markdown += f"- `{entry['file']}` ({size_kb:.1f} KB)\n"
-
-        return Markdown(markdown)
+        # the copies in outputs/ that equal the committed originals (also those copied in earlier runs)
+        if keep_full_path and not dry_run and Path(source_dir).resolve() == self.repo_dir:
+            same = [str(f) for f in manifest_file_paths(self.conf['manifest'])
+                    if (src := existing_file(source_dir, f)) and (dst := existing_file(self.outputs_dir, f))
+                    and filecmp.cmp(src, dst, shallow=False)]
+            unchanged, commit = self._git_unchanged(same) if same else (set(), None)
+            if unchanged:
+                parts.append(f"**Unchanged since commit `{commit}`**, were they reproduced? "
+                             + ", ".join(f"`{f}`" for f in same if f in unchanged))
+        return Markdown("\n\n".join(p for p in parts if p))
     
     def acknowledge_sponsors(self):
         """The sponsoring acknowledgement."""
