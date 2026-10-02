@@ -81,18 +81,31 @@ The script runs the notebook (hiding the code cells) into `codecheck.md` with
 (set `MAX_MD_BYTES` to change that limit), which usually means that very large
 output (e.g. big tables) ended up in the report.
 
-### CSV files
+### Output files
 
-For each CSV file in the manifest, `check.csv_files()` shows the file size, modification
-time, SHA-256 checksum, number of lines and number of columns, followed by summary
-statistics (`describe`) of the first `max_rows` rows (default 15) and the first
-`max_cols` columns (default 50). The report therefore stays small even for huge files.
-Additional arguments are passed to `pandas.read_csv()`:
+`check.manifest_files()` shows every file of the manifest according to its type. Each
+section starts with the author's comment and a table with the file size, modification
+time and SHA-256 checksum:
+
+| File type | What is shown |
+| --- | --- |
+| `.csv`, `.tsv`, `.xlsx` | number of lines and columns, summary statistics (`describe`) of the first `max_rows` rows (default 15) and first `max_cols` columns (default 50), optionally the first rows (`head=5`) |
+| `.txt`, `.log`, `.out`, `.Rout`, `.md`, `.json` | the first `max_lines` lines (default 50), JSON is pretty-printed |
+| `.png`, `.jpg`, `.gif`, `.svg`, `.pdf` | the image itself (the first page of PDFs) |
+| anything else | only the file information |
+
+The report stays small even for huge files, and a missing or broken file is reported in
+its section instead of stopping the build. Additional arguments are passed to
+`pandas.read_csv()`/`read_excel()`:
 
 ```python
-check.csv_files(max_rows=50, max_cols=20, index_col=False, header=None)
-check.csv_files(describe=False, head=5)   # show the first 5 rows instead of statistics
+check.manifest_files(max_rows=50, max_cols=20, index_col=False, header=None)
+check.manifest_files(describe=False, head=5)   # first 5 rows instead of statistics
+check.csv_files()                              # only the CSV files
+check.git_info()                               # the git commit the check is based on
 ```
+
+EPS figures cannot be included by Typst, convert them to PDF or PNG.
 
 ### Assumptions of this template
 

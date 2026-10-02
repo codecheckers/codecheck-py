@@ -50,6 +50,11 @@ def test_quickstart_creates_pdf(tmp_path):
         shutil.copy2(ROOT / '.codecheck' / name, repo / '.codecheck' / name)
 
     (outputs / 'results.csv').write_text('a,b\n1,2\n3,4\n')
+    (outputs / 'results.tsv').write_text('a\tb\n1\t2\n')
+    (outputs / 'run.log').write_text('started\n' * 200)
+    (outputs / 'stats.json').write_text('{"mean": 1.5}')
+    (outputs / 'plot.svg').write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10"><rect width="20" height="10" fill="red"/></svg>')
     (repo / 'codecheck.yml').write_text(yaml.dump({
         'version': 'https://codecheck.org.uk/spec/config/1.0/',
         'certificate': '2025-001',
@@ -63,7 +68,14 @@ def test_quickstart_creates_pdf(tmp_path):
         'check_time': '2025-01-02T10:00:00',
         'summary': 'Everything reproduced.',
         'codechecker': [{'name': 'Checker', 'ORCID': '0000-0001-8607-8025'}],
-        'manifest': [{'file': 'results.csv', 'comment': 'results'}],
+        'manifest': [
+            {'file': 'results.csv', 'comment': 'results'},
+            {'file': 'results.tsv', 'comment': 'tab separated'},
+            {'file': 'run.log', 'comment': 'terminal output'},
+            {'file': 'stats.json', 'comment': 'statistics'},
+            {'file': 'plot.svg', 'comment': 'a figure'},
+            {'file': 'not_reproduced.png', 'comment': 'this file is missing'},
+        ],
     }))
 
     result = subprocess.run(

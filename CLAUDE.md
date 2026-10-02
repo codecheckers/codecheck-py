@@ -50,7 +50,7 @@ repository-root/
 
 1. **`codecheck.py`**: `Codecheck` class. Reads `../codecheck.yml` (configurable) and exposes methods returning `IPython.display.Markdown` for the notebook:
    - `title()`, `summary_table()`, `summary()`, `files()`, `citation()`, `about_codecheck()`, `acknowledge_sponsors()`
-   - `csv_files()` (pandas `describe()` summaries), `latex_figures()` (PDF/EPS figure inclusion)
+   - `manifest_files()` (per-file sections by type: tables, text/JSON, images; checksums; never raises), `csv_files()` (CSV only), `git_info()` (commit SHA), `latex_figures()` (legacy PDF/EPS figure inclusion)
    - `session_info()` (via `session_info2`)
    - Validation: `validate()`, `validation_report()`, and `Codecheck(validate=True, strict=...)`
    - Manifest: `validate_manifest_files()`, `manifest_summary()`, `copy_manifest_files()`
@@ -93,13 +93,33 @@ The script (1) deletes the old `codecheck.md`, (2) runs `jupyter nbconvert --to 
 pytest tests/ -v
 pytest tests/ -v --cov=. --cov-report=term-missing
 ```
-Tests cover validation, manifest handling, the GitHub register check (mocked), integration and PDF generation. CI (`.github/workflows/test.yml`) runs on push/PR to `main`.
+`tests/conftest.py` puts `.codecheck/` on `sys.path` (no per-file path setup) and provides the image fixtures (`tests/data/base.png` converted to other formats at test time) and the `section()` helper. Tests cover validation, manifest handling, the GitHub register check (mocked), integration and PDF generation. CI (`.github/workflows/test.yml`) runs on push/PR to `main`.
+
+## Default Procedure for Changes
+
+For every code change, follow these steps (unless told otherwise):
+
+1. **Implement** the change together with tests (`pytest tests/ -v`) and update `README.md`/`CLAUDE.md` if behaviour, layout or commands change.
+2. **Simplify**: run `/simplify` on the changes and apply the fixes that do not change intended behaviour.
+3. **Code review**: run `/code-review` on the changes (use `--fix` only when asked) and resolve or explicitly note each finding.
+4. **Re-run the tests** after steps 2 and 3, then propose a commit message. Only commit or push when asked.
+
+Choose the level of steps 2 and 3 by the extent of the change:
+
+| Extent of the change | `/simplify` | `/code-review` level |
+| --- | --- | --- |
+| Typo, comment, docs-only or config-only change | skip | skip (or `low`) |
+| Small, local code change (a few lines in one function, one test) | optional, quick look | `low` |
+| Normal feature or bug fix (one module, new tests) | yes | `medium` |
+| Large or cross-cutting change (several modules, new public API, file layout or path handling, validation rules, CI) | yes | `high` |
+| Security-relevant or release-critical change | yes | `max` |
 
 ## Key Implementation Details
 
 ### Path Handling
 - `Codecheck` defaults to `../codecheck.yml`; the notebook is expected to run with `.codecheck/` as working directory.
-- Reproduced files are read from `outputs/` (relative to the working directory), mirroring manifest paths. Manifest paths are relative to the repo root, so `figures/a.png` -> `.codecheck/outputs/figures/a.png`.
+- The template directory is `.codecheck/` (default) or `codecheck/`: `find_outputs_dir()` in `manifest.py` (used by `ManifestProcessor` and the validation) picks the one that has an `outputs/` directory, then the one that exists. `Codecheck` itself reads `outputs/` relative to the working directory, i.e. the notebook runs in the template directory. `manifest_files()` refuses manifest paths outside of `outputs/`.
+- Reproduced files are read from `outputs/`, mirroring manifest paths. Manifest paths are relative to the repo root, so `figures/a.png` -> `.codecheck/outputs/figures/a.png`.
 - `files()` strips directory names by default (`remove_dirname=True`).
 - Binder: `postBuild` adds `.codecheck/` to `sys.path` so `from codecheck import Codecheck` works from the repo root.
 
@@ -107,8 +127,11 @@ Tests cover validation, manifest handling, the GitHub register check (mocked), i
 - Methods return `Markdown` objects; the output is consumed by Typst, not LaTeX, so LaTeX-only constructs are legacy. `latex_figures()` only handles `.pdf`/`.eps` by default (other formats need Markdown cells).
 - `title()` references `codecheck_logo.svg` in the working directory.
 
-### CSV Handling
-- `csv_files(max_rows=15, max_cols=50, describe=True, head=0, **kwds)` shows per CSV file a table with size, mtime, SHA-256, line and column counts (`_file_info()` streams the file in chunks), then optionally the first `head` rows and `describe()` statistics. Only the first `max_rows` rows and `max_cols` columns are parsed (`nrows`/`usecols`), so output size does not depend on the CSV size. `nrows`/`usecols` in `**kwds` take precedence. Background: issue #16 (40 MB Markdown made Typst run out of memory).
+### Manifest File Handling
+- `manifest_files(max_rows=15, max_cols=50, max_lines=50, describe=True, head=0, **kwds)` renders one section per manifest entry via `_render_manifest_entry()`, dispatching on the lower-case extension (`TABULAR_SEPARATORS`, `EXCEL_EXTENSIONS`, `TEXT_EXTENSIONS`, `IMAGE_EXTENSIONS` constants in `codecheck.py`). Every section has size, mtime and SHA-256 (`_file_info()` streams the file in chunks). Missing files and exceptions become a message in the section, so one bad file never stops the build.
+- Tables: only the first `max_rows` rows and `max_cols` columns are parsed (`nrows`/`usecols`), so output size does not depend on file size; `nrows`/`usecols` in `**kwds` take precedence. Text/JSON: first `max_lines` lines, lines cut at 200 characters, JSON > 1 MB is not parsed (shown as plain text). Images are embedded as `![](<outputs/file>)`; Typst supports png/jpg/gif/svg/pdf but not EPS.
+- `csv_files()` is `manifest_files()` restricted to `.csv`. Background: issue #16 (40 MB Markdown made Typst run out of memory).
+- `git_info()` runs `git -C <dir of codecheck.yml> rev-parse HEAD`; for the "uncommitted changes" note untracked files (`outputs/`) and the CODECHECK files themselves (`.codecheck/`, `codecheck/`, `codecheck.yml`) are ignored.
 
 ### ORCID Integration
 - `name_orcid()` currently formats as `Name (ORCID: 0000-...)` (plain text, not a link).
