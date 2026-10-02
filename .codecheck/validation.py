@@ -10,7 +10,9 @@ from dataclasses import dataclass
 from datetime import datetime
 import requests
 
+from manifest import find_outputs_dir
 from validation_config import (
+    as_list,
     MANDATORY_FIELDS,
     RECOMMENDED_FIELDS,
     OPTIONAL_FIELDS,
@@ -298,9 +300,7 @@ class CodecheckValidator:
         has_errors = False
 
         # Validate codechecker ORCID(s)
-        codechecker = self.config.get('codechecker', {})
-        if isinstance(codechecker, dict):
-            codechecker = [codechecker]
+        codechecker = as_list(self.config.get('codechecker', {}))
         if isinstance(codechecker, list):
             for person in codechecker:
                 orcid = person.get('ORCID', '') if isinstance(person, dict) else ''
@@ -456,8 +456,7 @@ class CodecheckValidator:
             return False
 
         # The specification allows a single codechecker or a list of codecheckers
-        if isinstance(codechecker, dict):
-            codechecker = [codechecker]
+        codechecker = as_list(codechecker)
         if not isinstance(codechecker, list):
             self.issues.append(ValidationIssue(
                 level='error',
@@ -560,7 +559,7 @@ class CodecheckValidator:
         Parameters
         ----------
         base_dir : Path, optional
-            Base directory containing codecheck/ subdirectory.
+            Base directory containing the `.codecheck/` or `codecheck/` subdirectory.
             Defaults to parent of config file.
 
         Returns
@@ -577,14 +576,14 @@ class CodecheckValidator:
             return False
 
         missing_files = []
-        outputs_dir = base_dir / 'codecheck' / 'outputs'
+        outputs_dir = find_outputs_dir(base_dir)
 
         if not outputs_dir.exists():
             self.issues.append(ValidationIssue(
                 level='error',
                 field='manifest',
                 message=f"Outputs directory does not exist: {outputs_dir}",
-                suggestion="Create .codecheck/outputs/ directory and copy manifest files there"
+                suggestion="Create .codecheck/outputs/ (or codecheck/outputs/) directory and copy manifest files there"
             ))
             return False
 
@@ -604,7 +603,7 @@ class CodecheckValidator:
                 level='error',
                 field='manifest',
                 message=f"Missing {len(missing_files)} file(s) in outputs/: {', '.join(missing_files[:5])}{'...' if len(missing_files) > 5 else ''}",
-                suggestion="Copy all manifest files to .codecheck/outputs/ directory"
+                suggestion=f"Copy all manifest files to the {outputs_dir.parent.name}/outputs/ directory"
             ))
             return False
 

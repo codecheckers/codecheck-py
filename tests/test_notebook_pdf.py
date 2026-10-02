@@ -16,7 +16,7 @@ def pdf_workspace():
 
     try:
         # Create directory structure
-        codecheck_dir = temp_dir / 'codecheck'
+        codecheck_dir = temp_dir / '.codecheck'
         codecheck_dir.mkdir()
         outputs_dir = codecheck_dir / 'outputs'
         outputs_dir.mkdir()
@@ -91,14 +91,14 @@ def pdf_workspace():
 
 def test_notebook_exists(pdf_workspace):
     """Test that the notebook file exists in workspace"""
-    notebook_path = pdf_workspace / 'codecheck' / 'codecheck.ipynb'
+    notebook_path = pdf_workspace / '.codecheck' / 'codecheck.ipynb'
     assert notebook_path.exists()
     assert notebook_path.stat().st_size > 0
 
 
 def test_dependencies_exist(pdf_workspace):
     """Test that all required dependencies for PDF generation exist"""
-    codecheck_dir = pdf_workspace / 'codecheck'
+    codecheck_dir = pdf_workspace / '.codecheck'
 
     # Check Python modules
     assert (codecheck_dir / 'codecheck.py').exists()
@@ -115,7 +115,7 @@ def test_dependencies_exist(pdf_workspace):
 def test_notebook_is_valid_json(pdf_workspace):
     """Test that the notebook is valid JSON"""
     import json
-    notebook_path = pdf_workspace / 'codecheck' / 'codecheck.ipynb'
+    notebook_path = pdf_workspace / '.codecheck' / 'codecheck.ipynb'
 
     with open(notebook_path) as f:
         notebook = json.load(f)
@@ -132,7 +132,7 @@ def test_notebook_is_valid_json(pdf_workspace):
 )
 def test_notebook_execution_only(pdf_workspace):
     """Test that the notebook can be executed without PDF conversion"""
-    codecheck_dir = pdf_workspace / 'codecheck'
+    codecheck_dir = pdf_workspace / '.codecheck'
     notebook_path = codecheck_dir / 'codecheck.ipynb'
 
     # Try to execute the notebook (without PDF conversion)
@@ -172,7 +172,7 @@ def test_notebook_execution_only(pdf_workspace):
 )
 def test_notebook_pdf_generation_without_latex(pdf_workspace):
     """Test notebook conversion to HTML as fallback when LaTeX is not available"""
-    codecheck_dir = pdf_workspace / 'codecheck'
+    codecheck_dir = pdf_workspace / '.codecheck'
     notebook_path = codecheck_dir / 'codecheck.ipynb'
     html_path = codecheck_dir / 'codecheck.html'
 
@@ -218,7 +218,7 @@ def test_notebook_validation_integration(pdf_workspace):
     """Test that validation works within the notebook context"""
     import sys
     import os
-    codecheck_dir = pdf_workspace / 'codecheck'
+    codecheck_dir = pdf_workspace / '.codecheck'
 
     # Save current directory
     old_cwd = os.getcwd()

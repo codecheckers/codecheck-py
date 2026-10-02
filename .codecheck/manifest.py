@@ -6,6 +6,26 @@ from pathlib import Path
 import shutil
 from typing import List, Dict, Tuple, Optional
 
+from validation_config import TEMPLATE_DIRS
+
+
+def find_outputs_dir(base_dir) -> Path:
+    """
+    Directory with the reproduced output files, `.codecheck/outputs` or `codecheck/outputs` below `base_dir`.
+
+    The first of the two directories that already has an `outputs/` directory is used, then the first of the two that
+    exists (`outputs/` is created later), otherwise the default `.codecheck/outputs`. `.codecheck` has priority if both
+    qualify.
+    """
+    base_dir = Path(base_dir)
+    for name in TEMPLATE_DIRS:
+        if (base_dir / name / 'outputs').is_dir():
+            return base_dir / name / 'outputs'
+    for name in TEMPLATE_DIRS:
+        if (base_dir / name).is_dir():
+            return base_dir / name / 'outputs'
+    return base_dir / TEMPLATE_DIRS[0] / 'outputs'
+
 
 class ManifestProcessor:
     """
@@ -27,7 +47,15 @@ class ManifestProcessor:
         """
         self.manifest = manifest
         self.base_dir = Path(base_dir)
-        self.outputs_dir = self.base_dir / 'codecheck' / 'outputs'
+        self.outputs_dir = find_outputs_dir(self.base_dir)
+
+    def _entries(self):
+        """Well-formed manifest entries; entries that are no mappings or have no file are skipped."""
+        return (e for e in self.manifest if isinstance(e, dict) and e.get('file'))
+
+    def _file_paths(self):
+        """File paths of the well-formed manifest entries."""
+        return (e['file'] for e in self._entries())
 
     def validate_files_exist(self, source_dir: Optional[Path] = None) -> Tuple[bool, List[str]]:
         """
@@ -47,12 +75,7 @@ class ManifestProcessor:
             source_dir = self.base_dir
 
         missing = []
-        for entry in self.manifest:
-            if not isinstance(entry, dict):
-                continue
-            file_path = entry.get('file')
-            if not file_path:
-                continue
+        for file_path in self._file_paths():
 
             full_path = Path(source_dir) / file_path
             if not full_path.exists():
@@ -70,15 +93,10 @@ class ManifestProcessor:
             (all_exist: bool, missing_files: List[str])
         """
         if not self.outputs_dir.exists():
-            return False, [entry.get('file', '') for entry in self.manifest if entry.get('file')]
+            return False, list(self._file_paths())
 
         missing = []
-        for entry in self.manifest:
-            if not isinstance(entry, dict):
-                continue
-            file_path = entry.get('file')
-            if not file_path:
-                continue
+        for file_path in self._file_paths():
 
             full_path = self.outputs_dir / file_path
             if not full_path.exists():
@@ -104,12 +122,7 @@ class ManifestProcessor:
         sizes = {}
         base = self.outputs_dir if use_outputs else self.base_dir
 
-        for entry in self.manifest:
-            if not isinstance(entry, dict):
-                continue
-            file_path = entry.get('file')
-            if not file_path:
-                continue
+        for file_path in self._file_paths():
 
             full_path = base / file_path
             if full_path.exists():
@@ -184,12 +197,8 @@ class ManifestProcessor:
         if not dry_run and not self.outputs_dir.exists():
             self.outputs_dir.mkdir(parents=True, exist_ok=True)
 
-        for entry in self.manifest:
-            if not isinstance(entry, dict):
-                continue
-            file_path = entry.get('file')
-            if not file_path:
-                continue
+        for entry in self._entries():
+            file_path = entry['file']
 
             src = source_dir / file_path
 
@@ -250,7 +259,7 @@ class ManifestProcessor:
             'total_size': total_size,
             'total_size_mb': round(total_size / (1024 * 1024), 2),
             'file_types': extensions,
-            'has_comments': sum(1 for e in self.manifest if e.get('comment'))
+            'has_comments': sum(1 for e in self.manifest if isinstance(e, dict) and e.get('comment'))
         }
 
     def validate_paths(self) -> Tuple[bool, List[str]]:

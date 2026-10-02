@@ -6,10 +6,7 @@ from pathlib import Path
 import tempfile
 import shutil
 import yaml
-import sys
 
-# Add .codecheck to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / '.codecheck'))
 from codecheck import Codecheck
 
 
@@ -25,8 +22,8 @@ def temp_workspace():
     temp_dir = Path(tempfile.mkdtemp())
 
     # Create directory structure
-    (temp_dir / 'codecheck').mkdir()
-    (temp_dir / 'codecheck' / 'outputs').mkdir()
+    (temp_dir / '.codecheck').mkdir()
+    (temp_dir / '.codecheck' / 'outputs').mkdir()
 
     # Create a minimal valid codecheck.yml
     config = {
@@ -57,7 +54,7 @@ def temp_workspace():
         yaml.dump(config, f)
 
     # Create manifest file in outputs
-    (temp_dir / 'codecheck' / 'outputs' / 'test.txt').write_text('test content')
+    (temp_dir / '.codecheck' / 'outputs' / 'test.txt').write_text('test content')
 
     yield temp_dir
 
@@ -174,7 +171,7 @@ def test_copy_manifest_files_method(temp_workspace):
 
     # Should return Markdown report
     assert result is not None
-    assert (temp_workspace / 'codecheck' / 'outputs' / 'source_file.txt').exists()
+    assert (temp_workspace / '.codecheck' / 'outputs' / 'source_file.txt').exists()
 
 
 def test_title_method(temp_workspace):
@@ -207,7 +204,7 @@ def test_files_method(temp_workspace):
     old_cwd = os.getcwd()
     try:
         # Change to codecheck directory as the notebook would
-        os.chdir(temp_workspace / 'codecheck')
+        os.chdir(temp_workspace / '.codecheck')
 
         check = Codecheck(
             manifest_file=str(temp_workspace / 'codecheck.yml'),

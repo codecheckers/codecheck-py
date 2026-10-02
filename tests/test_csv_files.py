@@ -1,14 +1,10 @@
 """
 Tests for Codecheck.csv_files() with large/wide CSV files (issue #16)
 """
-import sys
-from pathlib import Path
 
 import pytest
 import yaml
 
-# Add .codecheck to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / '.codecheck'))
 from codecheck import Codecheck
 
 

@@ -2,6 +2,10 @@
 Configuration constants for codecheck.yml validation
 """
 
+# Directories (relative to the repository root) that can contain the CODECHECK files and the `outputs/` directory,
+# in order of preference: `.codecheck/` (default) or `codecheck/`
+TEMPLATE_DIRS = ('.codecheck', 'codecheck')
+
 # Required fields according to CODECHECK spec
 MANDATORY_FIELDS = ['manifest', 'codechecker', 'report', 'version', 'paper', 'repository', 'check_time', 'certificate', 'summary']
 
@@ -38,3 +42,8 @@ PAPER_FIELDS = ['title', 'authors', 'reference']
 AUTHOR_FIELDS = ['name', 'ORCID']
 CODECHECKER_FIELDS = ['name', 'ORCID']
 MANIFEST_ENTRY_FIELDS = ['file']  # 'comment' is optional
+
+
+def as_list(value):
+    """A single person (dict) is allowed in `codecheck.yml` in place of a list of people."""
+    return [value] if isinstance(value, dict) else value

@@ -5,10 +5,7 @@ import pytest
 from pathlib import Path
 import tempfile
 import shutil
-import sys
 
-# Add .codecheck to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / '.codecheck'))
 from manifest import ManifestProcessor
 
 
@@ -24,7 +21,7 @@ def temp_workspace():
     temp_dir = Path(tempfile.mkdtemp())
 
     # Create directory structure
-    (temp_dir / 'codecheck' / 'outputs').mkdir(parents=True)
+    (temp_dir / '.codecheck' / 'outputs').mkdir(parents=True)
     (temp_dir / 'figures').mkdir()
     (temp_dir / 'data').mkdir()
 
@@ -47,7 +44,7 @@ def test_manifest_processor_initialization():
 
     assert processor.manifest == manifest
     assert processor.base_dir == Path('/tmp')
-    assert processor.outputs_dir == Path('/tmp/codecheck/outputs')
+    assert processor.outputs_dir == Path('/tmp/.codecheck/outputs')
 
 
 def test_validate_files_exist_all_present(temp_workspace):
@@ -83,7 +80,7 @@ def test_validate_output_files_exist(temp_workspace):
     # Copy files to outputs
     shutil.copy2(
         temp_workspace / 'figures' / 'plot1.png',
-        temp_workspace / 'codecheck' / 'outputs' / 'plot1.png'
+        temp_workspace / '.codecheck' / 'outputs' / 'plot1.png'
     )
 
     manifest = [
@@ -100,10 +97,10 @@ def test_validate_output_files_exist(temp_workspace):
 def test_get_file_sizes_from_outputs(temp_workspace):
     """Test getting file sizes from outputs directory"""
     # Copy files to outputs
-    (temp_workspace / 'codecheck' / 'outputs' / 'figures').mkdir()
+    (temp_workspace / '.codecheck' / 'outputs' / 'figures').mkdir()
     shutil.copy2(
         temp_workspace / 'figures' / 'plot1.png',
-        temp_workspace / 'codecheck' / 'outputs' / 'figures' / 'plot1.png'
+        temp_workspace / '.codecheck' / 'outputs' / 'figures' / 'plot1.png'
     )
 
     manifest = [
@@ -145,8 +142,8 @@ def test_copy_manifest_files_keep_full_path(temp_workspace):
     )
 
     assert len(copied) == 2
-    assert (temp_workspace / 'codecheck' / 'outputs' / 'figures' / 'plot1.png').exists()
-    assert (temp_workspace / 'codecheck' / 'outputs' / 'data' / 'results.csv').exists()
+    assert (temp_workspace / '.codecheck' / 'outputs' / 'figures' / 'plot1.png').exists()
+    assert (temp_workspace / '.codecheck' / 'outputs' / 'data' / 'results.csv').exists()
 
 
 def test_copy_manifest_files_flatten(temp_workspace):
@@ -164,8 +161,8 @@ def test_copy_manifest_files_flatten(temp_workspace):
     )
 
     assert len(copied) == 2
-    assert (temp_workspace / 'codecheck' / 'outputs' / 'plot1.png').exists()
-    assert (temp_workspace / 'codecheck' / 'outputs' / 'results.csv').exists()
+    assert (temp_workspace / '.codecheck' / 'outputs' / 'plot1.png').exists()
+    assert (temp_workspace / '.codecheck' / 'outputs' / 'results.csv').exists()
 
 
 def test_copy_manifest_files_no_overwrite(temp_workspace):
@@ -183,7 +180,7 @@ def test_copy_manifest_files_no_overwrite(temp_workspace):
     )
 
     # Modify the copied file
-    output_file = temp_workspace / 'codecheck' / 'outputs' / 'figures' / 'plot1.png'
+    output_file = temp_workspace / '.codecheck' / 'outputs' / 'figures' / 'plot1.png'
     original_content = output_file.read_text()
     output_file.write_text('modified content')
 
@@ -213,7 +210,7 @@ def test_copy_manifest_files_dry_run(temp_workspace):
 
     # Should return info but not copy
     assert len(copied) == 1
-    assert not (temp_workspace / 'codecheck' / 'outputs' / 'figures' / 'plot1.png').exists()
+    assert not (temp_workspace / '.codecheck' / 'outputs' / 'figures' / 'plot1.png').exists()
 
 
 def test_get_manifest_summary(temp_workspace):
@@ -320,4 +317,67 @@ def test_copy_manifest_files_creates_directories(temp_workspace):
     )
 
     assert len(copied) == 1
-    assert (temp_workspace / 'codecheck' / 'outputs' / 'deep' / 'nested' / 'dir' / 'file.txt').exists()
+    assert (temp_workspace / '.codecheck' / 'outputs' / 'deep' / 'nested' / 'dir' / 'file.txt').exists()
+
+
+# --- edge cases: malformed entries, default directories, symlinks ---
+
+MALFORMED = ['just a string', {'comment': 'no file'}, {'file': ''}, {'file': 'figures/plot1.png', 'comment': 'ok'}]
+
+
+def test_malformed_entries_are_skipped(temp_workspace):
+    processor = ManifestProcessor(MALFORMED, temp_workspace)
+    assert processor.validate_files_exist() == (True, [])
+    assert processor.validate_output_files_exist() == (False, ['figures/plot1.png'])
+    assert processor.get_file_sizes(use_outputs=False) == {'figures/plot1.png': (temp_workspace / 'figures' / 'plot1.png').stat().st_size}
+    assert processor.get_file_sizes(use_outputs=True) == {}
+    assert processor.copy_manifest_files() != []
+    assert processor.get_manifest_summary()['file_types'] == {'': 2, '.png': 1}
+
+
+def test_validate_output_files_exist_without_outputs_dir(tmp_path):
+    processor = ManifestProcessor([{'file': 'a.csv'}, {'comment': 'x'}], tmp_path)
+    assert processor.validate_output_files_exist() == (False, ['a.csv'])
+
+
+def test_copy_manifest_files_defaults_to_base_dir_and_creates_outputs(tmp_path):
+    (tmp_path / 'data').mkdir()
+    (tmp_path / 'data' / 'results.csv').write_text('a\n1\n')
+    processor = ManifestProcessor([{'file': 'data/results.csv'}, {'file': 'data/not_there.csv'}], tmp_path)
+    copied = processor.copy_manifest_files()  # no source_dir, outputs/ does not exist yet
+    assert [c['file'] for c in copied] == ['data/results.csv']  # the missing source file is skipped
+    assert (tmp_path / '.codecheck' / 'outputs' / 'data' / 'results.csv').read_text() == 'a\n1\n'
+
+
+def test_dry_run_does_not_create_outputs_dir(tmp_path):
+    (tmp_path / 'a.csv').write_text('a\n1\n')
+    processor = ManifestProcessor([{'file': 'a.csv'}], tmp_path)
+    assert len(processor.copy_manifest_files(dry_run=True)) == 1
+    assert not (tmp_path / '.codecheck').exists()
+
+
+def test_validate_paths_detects_symlink_escaping_outputs(tmp_path):
+    outside = tmp_path / 'outside'
+    outside.mkdir()
+    (outside / 'secret.txt').write_text('x')
+    outputs = tmp_path / 'repo' / '.codecheck' / 'outputs'
+    outputs.mkdir(parents=True)
+    (outputs / 'link').symlink_to(outside)
+    processor = ManifestProcessor([{'file': 'link/secret.txt'}, {'file': 'fine.txt'}, 'not a dict'], tmp_path / 'repo')
+    safe, unsafe = processor.validate_paths()
+    assert safe is False and unsafe == ['link/secret.txt']
+
+
+def test_compare_sizes_skips_malformed_and_undeclared_entries(temp_workspace):
+    actual = (temp_workspace / '.codecheck' / 'outputs' / 'figures' / 'plot1.png')
+    actual.parent.mkdir(exist_ok=True)
+    actual.write_text('12345')
+    manifest = ['not a dict', {'comment': 'no file', 'size': 1}, {'file': 'figures/plot1.png'},
+                {'file': 'figures/missing.png', 'size': 10}, {'file': 'figures/plot1.png', 'size': 99}]
+    mismatches = ManifestProcessor(manifest, temp_workspace).compare_sizes()
+    assert [(m['file'], m['declared'], m['actual']) for m in mismatches] == [('figures/plot1.png', 99, 5)]
+
+
+def test_output_files_without_outputs_dir_ignores_malformed_entries(tmp_path):
+    processor = ManifestProcessor(['a string', {'file': 'a.csv'}], tmp_path)
+    assert processor.validate_output_files_exist() == (False, ['a.csv'])
