@@ -9,9 +9,6 @@ TEMPLATE_DIRS = ('.codecheck', 'codecheck')
 # Required fields according to CODECHECK spec
 MANDATORY_FIELDS = ['manifest', 'codechecker', 'report', 'version', 'paper', 'repository', 'check_time', 'certificate', 'summary']
 
-# Recommended fields for complete certificates (now empty - all promoted to mandatory)
-RECOMMENDED_FIELDS = []
-
 # Optional but recognized fields
 OPTIONAL_FIELDS = ['source']
 

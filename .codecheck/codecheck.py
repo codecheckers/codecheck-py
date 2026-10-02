@@ -17,7 +17,7 @@ from IPython.display import Markdown
 from datetime import datetime
 from pathlib import Path
 
-from manifest import ManifestProcessor
+from manifest import ManifestProcessor, find_outputs_dir, output_path
 from validation import CodecheckValidator
 from validation_config import TEMPLATE_DIRS, as_list
 
@@ -105,13 +105,31 @@ class Codecheck:
         with open(manifest_file) as f:
             self.conf = yaml.safe_load(f)
 
+        # Reproduced files: `outputs/` in the working directory (the template directory, where the notebook runs and
+        # Typst compiles), otherwise `.codecheck/outputs` or `codecheck/outputs` next to `codecheck.yml` (e.g. Binder)
+        base_dir = Path(manifest_file).parent
+        outputs_dir = Path("outputs") if op.isdir("outputs") else find_outputs_dir(base_dir)
+        self.outputs_dir = Path(op.abspath(outputs_dir))  # no resolve(): a symlinked outputs/ keeps its link path
+
         # Initialize manifest processor if manifest exists
         if self.conf and 'manifest' in self.conf:
-            base_dir = Path(manifest_file).parent
-            self.manifest_processor = ManifestProcessor(
-                self.conf['manifest'],
-                base_dir
-            )
+            self.manifest_processor = ManifestProcessor(self.conf['manifest'], base_dir, self.outputs_dir)
+
+    @property
+    def outputs_link(self):
+        """
+        `outputs_dir` relative to the working directory, for links in the Markdown output: `outputs` when the notebook
+        runs in the template directory (where Typst compiles the certificate).
+        """
+        try:
+            return Path(op.relpath(self.outputs_dir)).as_posix()
+        except ValueError:  # Windows: working directory on another drive
+            return self.outputs_dir.as_posix()
+
+    def _output_size(self, fname):
+        """File size of a manifest file in `outputs_dir` as text, or `missing` (also for paths outside of it)."""
+        path = output_path(self.outputs_dir, fname)
+        return str(op.getsize(path)) if path and path.is_file() else "**missing**"
 
     def get_formatted_summary(self):
         """Remove additional whitespaces and newline characters from the summary."""
@@ -173,11 +191,7 @@ File | Comment | Size (b)
                 + "` | "
                 + str(entry.get("comment") or "")
                 + " | "
-                + (
-                    str(op.getsize(op.join("outputs", entry["file"])))
-                    if op.isfile(op.join("outputs", entry["file"]))
-                    else "**missing**"
-                )
+                + self._output_size(entry["file"])
             )
             for entry in self.conf["manifest"]
             if isinstance(entry, dict) and entry.get("file")
@@ -328,8 +342,7 @@ This certificate confirms that the codechecker could independently reproduce the
             body += f"\n*... {total - max_lines:,} more lines omitted*\n"
         return [("Lines", f"{total:,}")], body
 
-    @staticmethod
-    def _image(fname, comment, path, ext):
+    def _image(self, fname, comment, path, ext):
         """Extra info rows and Markdown of an image (embedded by Typst, so only formats supported by Typst)."""
         rows = []
         if ext not in VECTOR_EXTENSIONS:
@@ -342,23 +355,22 @@ This certificate confirms that the codechecker could independently reproduce the
         if ext == ".pdf":
             rows.append(("Preview", "first page"))
         alt = re.sub(r"[\[\]\n]", " ", comment or fname)
-        return rows, f"![{alt}](<outputs/{fname}>)\n"
+        return rows, f"![{alt}](<{self.outputs_link}/{fname}>)\n"
 
     def _render_manifest_entry(self, entry, max_rows, max_cols, max_lines, describe, head, **kwds):
         """Markdown section for one manifest entry; problems are reported in the section, they never raise."""
         fname = str(entry["file"])
         comment = str(entry["comment"]) if entry.get("comment") else None
-        path = op.join("outputs", fname)
+        path = output_path(self.outputs_dir, fname)
         ext = op.splitext(fname)[1].lower()
         section = f"""### `{fname}`
 {('Author comment: *' + comment + '*') if comment else ' '}
 
 """
-        outputs = Path("outputs").resolve()
-        if not (outputs / fname).resolve().is_relative_to(outputs):
-            return section + "> **Not shown:** the path is not inside the `outputs/` directory.\n"
-        if not op.isfile(path):
-            return section + f"> **File missing:** `outputs/{fname}` does not exist.\n"
+        if path is None:
+            return section + f"> **Not shown:** the path is not inside the `{self.outputs_link}/` directory.\n"
+        if not path.is_file():
+            return section + f"> **File missing:** `{self.outputs_link}/{fname}` does not exist.\n"
         try:
             info = self._file_info(path)  # read the file once for size, checksum and line count
             if ext in TABULAR_SEPARATORS or ext in EXCEL_EXTENSIONS:
@@ -460,15 +472,17 @@ This certificate confirms that the codechecker could independently reproduce the
         full_text = []
         # Figures (only PDF versions)
         for entry in self.conf["manifest"]:
-            fname = entry["file"]
+            if not (isinstance(entry, dict) and entry.get("file")):
+                continue
+            fname = str(entry["file"])
             if not op.splitext(fname)[1].lower() in extensions:
                 continue
-            comment = entry["comment"]
+            comment = str(entry.get("comment") or "")
             heading = f"""### `{fname}`
 {('Author comment: *' + comment + '*') if comment else ' '}"""
             full_text.extend(
                 [
-                    heading + r"![" + r"Author comment: " + comment + r"]" + r"(outputs/" + fname + r")",
+                    f"{heading}![Author comment: {comment}](<{self.outputs_link}/{fname}>)",
                     "",
                 ]
             )

@@ -7,7 +7,7 @@ import pytest
 import yaml
 
 from codecheck import Codecheck
-from manifest import ManifestProcessor, find_outputs_dir
+from manifest import ManifestProcessor, find_outputs_dir, output_path
 from validation import CodecheckValidator
 
 LAYOUTS = ['.codecheck', 'codecheck']
@@ -105,3 +105,83 @@ def test_codecheck_class(layout):
     assert 'Lines | 3' in check.manifest_files().data  # file info is read from outputs/ (cwd is the layout dir)
     passed, issues = check.validate(check_register=False)
     assert not [i for i in issues if i.field == 'manifest' and i.level == 'error' and 'outputs' in i.message]
+
+
+def test_codecheck_class_from_repository_root(layout, monkeypatch):
+    """E.g. on Binder: the notebook runs in the repository root, files and links still point into `<layout>/outputs`."""
+    root, name = layout
+    (root / name / 'outputs' / 'b.png').write_bytes(b'')
+    (root / 'codecheck.yml').write_text(yaml.dump({'manifest': MANIFEST + [{'file': 'b.png'}]}))
+    monkeypatch.chdir(root)
+    check = Codecheck('codecheck.yml')
+    assert check.outputs_dir == (root / name / 'outputs').resolve()
+    assert check.outputs_link == f'{name}/outputs'
+    assert '`a.csv` | table | 12' in check.files().data
+    md = check.manifest_files().data
+    assert 'Lines | 3' in md
+    assert f'(<{name}/outputs/b.png>)' in md
+
+
+def test_codecheck_class_prefers_outputs_in_working_directory(layout, monkeypatch, tmp_path_factory):
+    """The notebook runs in the template directory: its `outputs/` is used, whatever its name or other layouts."""
+    root, _ = layout
+    other = tmp_path_factory.mktemp('cert')
+    (other / 'outputs' / 'data').mkdir(parents=True)
+    (other / 'outputs' / 'data' / 'a.csv').write_text('x\n1\n')
+    monkeypatch.chdir(other)
+    check = Codecheck(str(root / 'codecheck.yml'))
+    assert check.outputs_link == 'outputs'
+    assert '`a.csv` | table | 4' in check.files().data
+
+
+def test_symlinked_outputs_dir_keeps_link(layout, monkeypatch, tmp_path_factory):
+    """`outputs/` may be a symlink to another disk: links stay inside the template directory (Typst root)."""
+    root, name = layout
+    target = tmp_path_factory.mktemp('disk') / 'outputs'
+    (root / name / 'outputs').rename(target)
+    (root / name / 'outputs').symlink_to(target)
+    check = Codecheck()
+    assert check.outputs_link == 'outputs'
+    assert '`a.csv` | table | 12' in check.files().data
+
+
+def test_symlinked_file_in_outputs(layout):
+    """A file in `outputs/` may be a symlink to the original file in the repository."""
+    root, name = layout
+    (root / name / 'outputs' / 'data' / 'a.csv').unlink()
+    (root / name / 'outputs' / 'data' / 'a.csv').symlink_to(root / 'data' / 'a.csv')
+    check = Codecheck()
+    assert '`a.csv` | table | 8' in check.files().data
+    assert 'Lines | 2' in check.manifest_files().data
+
+
+def test_missing_file_message_uses_link(layout, monkeypatch):
+    root, name = layout
+    (root / name / 'outputs' / 'data' / 'a.csv').unlink()
+    assert '`outputs/data/a.csv` does not exist' in Codecheck().manifest_files().data
+    monkeypatch.chdir(root)
+    md = Codecheck('codecheck.yml').manifest_files().data
+    assert f'`{name}/outputs/data/a.csv` does not exist' in md
+    assert '`a.csv` | table | **missing**' in Codecheck('codecheck.yml').files().data
+
+
+def test_output_path(tmp_path):
+    (tmp_path / 'outputs').mkdir()
+    assert output_path(tmp_path / 'outputs', 'a/b.csv') == (tmp_path / 'outputs' / 'a' / 'b.csv').resolve()
+    assert output_path(tmp_path / 'outputs', '../x.csv') is None
+    assert output_path(tmp_path / 'outputs', '/etc/passwd') is None
+    assert output_path(tmp_path / 'outputs', 'v1..2.txt') == tmp_path / 'outputs' / 'v1..2.txt'
+
+
+def test_manifest_processor_uses_given_outputs_dir(tmp_path):
+    assert ManifestProcessor([], tmp_path, tmp_path / 'elsewhere').outputs_dir == tmp_path / 'elsewhere'
+
+
+def test_validate_paths_allows_dots_in_names(tmp_path):
+    assert ManifestProcessor([{'file': 'v1..2.txt'}, {'file': '../x'}], tmp_path).validate_paths() == (False, ['../x'])
+
+
+def test_latex_figures_tolerates_entries_without_comment(layout):
+    root, name = layout
+    (root / 'codecheck.yml').write_text(yaml.dump({'manifest': [{'file': 'f.pdf'}, 'bad', {'comment': 'x'}]}))
+    assert '](<outputs/f.pdf>)' in Codecheck().latex_figures().data

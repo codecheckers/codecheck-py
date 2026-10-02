@@ -3,6 +3,7 @@ Manifest processing module for CODECHECK certificates
 https://codecheck.org.uk
 """
 from pathlib import Path
+import os
 import shutil
 from typing import List, Dict, Tuple, Optional
 
@@ -27,6 +28,17 @@ def find_outputs_dir(base_dir) -> Path:
     return base_dir / TEMPLATE_DIRS[0] / 'outputs'
 
 
+def output_path(outputs_dir, file_path) -> Optional[Path]:
+    """
+    Path of a manifest file in `outputs_dir`, or None if the manifest path leads outside of it (absolute path, `..`).
+
+    The check is lexical: symlinks in `outputs_dir` (e.g. to large original files) are not resolved.
+    """
+    outputs_dir = Path(os.path.normpath(outputs_dir))
+    path = Path(os.path.normpath(outputs_dir / file_path))
+    return path if path.is_relative_to(outputs_dir) else None
+
+
 class ManifestProcessor:
     """
     Processor for handling manifest files in CODECHECK certificates.
@@ -34,7 +46,7 @@ class ManifestProcessor:
     Handles file validation, copying, and size tracking for manifest entries.
     """
 
-    def __init__(self, manifest: List[Dict], base_dir: Path):
+    def __init__(self, manifest: List[Dict], base_dir: Path, outputs_dir: Optional[Path] = None):
         """
         Initialize manifest processor.
 
@@ -44,10 +56,12 @@ class ManifestProcessor:
             Manifest entries from codecheck.yml
         base_dir : Path
             Base directory (typically repository root)
+        outputs_dir : Path, optional
+            Directory of the reproduced files. Defaults to `find_outputs_dir(base_dir)`.
         """
         self.manifest = manifest
         self.base_dir = Path(base_dir)
-        self.outputs_dir = find_outputs_dir(self.base_dir)
+        self.outputs_dir = Path(outputs_dir) if outputs_dir else find_outputs_dir(self.base_dir)
 
     def _entries(self):
         """Well-formed manifest entries; entries that are no mappings or have no file are skipped."""
@@ -277,17 +291,9 @@ class ManifestProcessor:
                 continue
             file_path = entry.get('file', '')
 
-            # Check for path traversal attempts
-            if '..' in file_path or file_path.startswith('/'):
-                unsafe.append(file_path)
-                continue
-
-            # Ensure normalized path doesn't escape
-            normalized = (self.outputs_dir / file_path).resolve()
-            try:
-                normalized.relative_to(self.outputs_dir.resolve())
-            except ValueError:
-                # Path escapes outputs directory
+            # Check for path traversal attempts (absolute paths, `..`) and symlinks that lead outside
+            if (output_path(self.outputs_dir, file_path) is None
+                    or not (self.outputs_dir / file_path).resolve().is_relative_to(self.outputs_dir.resolve())):
                 unsafe.append(file_path)
 
         return len(unsafe) == 0, unsafe

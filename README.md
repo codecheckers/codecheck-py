@@ -194,21 +194,18 @@ The validation system performs the following checks on your `codecheck.yml` file
 
 #### 2. **Field Completeness**
 
-- **Mandatory fields** (must be present):
-  - `manifest` - List of reproduced files
-  - `codechecker` - Name and ORCID of checker
-  - `report` - DOI or URL of certificate report
-
-- **Recommended fields** (warnings if missing):
+- **Mandatory fields** (errors if missing):
   - `version` - Config specification version
+  - `certificate` - Certificate ID (YYYY-NNN format)
+  - `report` - DOI or URL of certificate report
   - `paper` - Paper metadata (title, authors, reference)
   - `repository` - Code repository URL
+  - `codechecker` - Name and ORCID of checker
   - `check_time` - When the check was performed
-  - `certificate` - Certificate ID (YYYY-NNN format)
-
-- **Optional fields**:
   - `summary` - Summary of findings
-  - `source` - Additional source information
+  - `manifest` - List of reproduced files
+
+- **Optional fields**: `source` - Additional source information
 
 #### 3. **Placeholder Detection**
 
@@ -308,16 +305,13 @@ The validation system performs the following checks on your `codecheck.yml` file
 - **codechecker.name**: Codechecker name is missing
   - *Suggestion*: Add name field for codechecker
 
-## ⚠️  Warnings (3)
+## ⚠️  Warnings (2)
 
 - **certificate**: Certificate ID 'YYYY-001' appears to be a placeholder
   - *Suggestion*: Replace with actual certificate ID (format: YYYY-NNN)
 
 - **paper.authors[0].ORCID**: Author 1 ORCID is missing
   - *Suggestion*: Add ORCID for complete author information
-
-- **summary**: Recommended field 'summary' is missing
-  - *Suggestion*: Consider adding 'summary' for a complete certificate
 ```
 
 ### Disabling Register Checks

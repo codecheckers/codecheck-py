@@ -29,7 +29,7 @@ codecheck-py/
     ├── codecheck_logo.svg   # Logo (SVG; PNG was removed)
     ├── notebook_to_pdf.sh   # notebook -> Markdown -> Typst -> PDF pipeline
     ├── validation.py        # `CodecheckValidator` for codecheck.yml
-    ├── validation_config.py # Constants: mandatory/recommended fields, regexes, placeholder patterns
+    ├── validation_config.py # Constants: mandatory fields, regexes, placeholder patterns
     ├── manifest.py          # `ManifestProcessor`: manifest summary, existence check, file copying
     └── outputs/             # Reproduced outputs from the manifest (gitignored)
 ```
@@ -55,7 +55,7 @@ repository-root/
    - Validation: `validate()`, `validation_report()`, and `Codecheck(validate=True, strict=...)`
    - Manifest: `validate_manifest_files()`, `manifest_summary()`, `copy_manifest_files()`
    - Module-level helpers: `name_orcid`, `multiple_name_orcid`, `multiple_name`, `url_link`, `short_link`
-2. **`validation.py` / `validation_config.py`**: checks YAML syntax, mandatory/recommended fields, placeholders (FIXME/TODO/example/...), certificate ID (`YYYY-NNN`), ORCID, DOI/URL, ISO dates, paper/codechecker/manifest structure, manifest file existence in `outputs/`, and (via `requests`) that a matching issue exists in the [codecheckers/register](https://github.com/codecheckers/register). Network errors only warn. Non-strict mode fails on errors only; strict mode also fails on warnings.
+2. **`validation.py` / `validation_config.py`**: checks YAML syntax, mandatory fields, placeholders (FIXME/TODO/example/...), certificate ID (`YYYY-NNN`), ORCID, DOI/URL, ISO dates, paper/codechecker/manifest structure, manifest file existence in `outputs/`, and (via `requests`) that a matching issue exists in the [codecheckers/register](https://github.com/codecheckers/register). Network errors only warn. Non-strict mode fails on errors only; strict mode also fails on warnings.
 3. **`manifest.py`**: `ManifestProcessor` for manifest summary stats, output-file existence and copying files into `outputs/`.
 4. **`codecheck.ipynb`**: template notebook using the `Codecheck` class.
 5. **`codecheck.typ`**: Typst document that `read("codecheck.md")` and renders the final PDF.
@@ -118,7 +118,8 @@ Choose the level of steps 2 and 3 by the extent of the change:
 
 ### Path Handling
 - `Codecheck` defaults to `../codecheck.yml`; the notebook is expected to run with `.codecheck/` as working directory.
-- The template directory is `.codecheck/` (default) or `codecheck/`: `find_outputs_dir()` in `manifest.py` (used by `ManifestProcessor` and the validation) picks the one that has an `outputs/` directory, then the one that exists. `Codecheck` itself reads `outputs/` relative to the working directory, i.e. the notebook runs in the template directory. `manifest_files()` refuses manifest paths outside of `outputs/`.
+- The template directory is `.codecheck/` (default) or `codecheck/`: `find_outputs_dir()` in `manifest.py` (used by `ManifestProcessor` and the validation) picks the one next to `codecheck.yml` that has an `outputs/` directory, then the one that exists. `Codecheck.outputs_dir` is `outputs/` in the working directory if it exists (the notebook runs in the template directory, whatever its name), otherwise `find_outputs_dir()` (e.g. notebook in the repo root on Binder); it is passed on to `ManifestProcessor`. It is not `resolve()`d, so a symlinked `outputs/` keeps the link `outputs/...`. `Codecheck.outputs_link` (property) is its path relative to the working directory, used for image links: they must stay inside the template directory, the Typst root.
+- `output_path()` in `manifest.py` is the lexical containment check (absolute paths and `..` are refused, symlinks inside `outputs/` are allowed); `files()`, `manifest_files()` and `ManifestProcessor.validate_paths()` use it, the latter also refuses symlinks that lead outside.
 - Reproduced files are read from `outputs/`, mirroring manifest paths. Manifest paths are relative to the repo root, so `figures/a.png` -> `.codecheck/outputs/figures/a.png`.
 - `files()` strips directory names by default (`remove_dirname=True`).
 - Binder: `postBuild` adds `.codecheck/` to `sys.path` so `from codecheck import Codecheck` works from the repo root.

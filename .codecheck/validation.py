@@ -14,7 +14,6 @@ from manifest import find_outputs_dir
 from validation_config import (
     as_list,
     MANDATORY_FIELDS,
-    RECOMMENDED_FIELDS,
     OPTIONAL_FIELDS,
     PLACEHOLDER_PATTERNS,
     CERTIFICATE_FORMAT,
@@ -108,7 +107,7 @@ class CodecheckValidator:
 
     def validate_field_completeness(self) -> bool:
         """
-        Check for presence of required and recommended fields.
+        Check for presence of the mandatory fields.
 
         Returns
         -------
@@ -130,16 +129,6 @@ class CodecheckValidator:
                     suggestion=f"Add '{field}' field to codecheck.yml with appropriate value"
                 ))
                 has_errors = True
-
-        # Check recommended fields
-        for field in RECOMMENDED_FIELDS:
-            if not self._field_present(field):
-                self.issues.append(ValidationIssue(
-                    level='warning',
-                    field=field,
-                    message=f"Recommended field '{field}' is missing",
-                    suggestion=f"Consider adding '{field}' for a complete certificate"
-                ))
 
         return not has_errors
 
@@ -379,7 +368,7 @@ class CodecheckValidator:
         """
         paper = self.config.get('paper')
         if not paper:
-            # Already caught by recommended field check
+            # Already caught by mandatory field check
             return True
 
         if not isinstance(paper, dict):
@@ -519,15 +508,6 @@ class CodecheckValidator:
                 field='manifest',
                 message=f"Manifest must be a list, got {type(manifest).__name__}",
                 suggestion="Structure manifest as list: [{file: '...', comment: '...'}, ...]"
-            ))
-            return False
-
-        if len(manifest) == 0:
-            self.issues.append(ValidationIssue(
-                level='error',
-                field='manifest',
-                message="Manifest is empty",
-                suggestion="Add at least one file entry to manifest"
             ))
             return False
 
