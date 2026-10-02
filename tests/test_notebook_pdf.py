@@ -282,3 +282,16 @@ def test_notebook_validation_integration(pdf_workspace):
     finally:
         os.chdir(old_cwd)
         sys.path.remove(str(codecheck_dir))
+
+
+@pytest.mark.skipif(shutil.which('typst') is None, reason="typst not installed")
+def test_typst_template_uses_only_built_in_fonts(tmp_path):
+    """Without system fonts there is no font warning: the PDF looks the same on every machine (CI, Binder)."""
+    source_dir = Path(__file__).parent.parent / '.codecheck'
+    for name in ('codecheck.typ', 'codecheck_logo.svg'):
+        shutil.copy2(source_dir / name, tmp_path / name)
+    (tmp_path / 'codecheck.md').write_text("# Title\n\nText with `code` and $x^2$.\n\n```python\nprint(1)\n```\n")
+    result = subprocess.run(['typst', 'compile', '--ignore-system-fonts', 'codecheck.typ'],
+                            cwd=tmp_path, capture_output=True, text=True, timeout=120)
+    assert result.returncode == 0, result.stderr
+    assert 'unknown font family' not in result.stderr

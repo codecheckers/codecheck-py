@@ -66,7 +66,7 @@ repository-root/
 5. **`doi_metadata.py`**: `fetch_paper_metadata()` asks Crossref, adds missing ORCIDs from OpenAlex (same position and family name; OpenAlex is skipped if all authors have one), falls back to OpenAlex; `plan_paper_updates()` decides which `paper` fields may be replaced (missing, `is_placeholder()`, invalid ORCIDs, or `overwrite`), `write_paper_fields()` writes them with `ruamel.yaml`; `Codecheck.update_config_from_doi()` only renders the table; 404 -> None, both unknown -> `DoiNotFound`; session cache `_cache`; `mailto` / `CODECHECK_MAILTO` for the polite pools. Tests mock `doi_metadata.requests.get`.
 6. **`manifest.py`**: `ManifestProcessor` for manifest summary stats, output-file existence and copying files into `outputs/`.
 7. **`codecheck.ipynb`**: template notebook using the `Codecheck` class.
-8. **`codecheck.typ`**: Typst document that `read("codecheck.md")` and renders the final PDF.
+8. **`codecheck.typ`**: Typst document that `read("codecheck.md")` and renders the final PDF; it only uses fonts built into Typst (New Computer Modern, New Computer Modern Math, DejaVu Sans Mono), so the PDF is the same on every machine (test: `--ignore-system-fonts` without font warnings).
 
 ### Configuration File (`codecheck.yml`)
 

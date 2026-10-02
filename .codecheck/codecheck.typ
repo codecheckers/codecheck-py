@@ -7,16 +7,16 @@
 #show figure.caption: set text(size: 10pt)
 
 #set text(
-  font: "Latin Modern Roman",
+  font: "New Computer Modern",  // fonts built into Typst: the same PDF on every machine
   lang: "en",
   size: 10pt
 )
 
 #show math.equation: set text(
-  font: "Latin Modern Math"
+  font: "New Computer Modern Math"
 )
 
-#show raw: set text(font: "Ubuntu Mono")
+#show raw: set text(font: "DejaVu Sans Mono")
 
 #show raw.where(block: false): text.with(
   weight: "bold"
