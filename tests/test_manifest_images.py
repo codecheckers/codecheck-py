@@ -115,7 +115,7 @@ def test_all_supported_formats_in_pdf(tmp_path, image_dir):
     shutil.copy2(image_dir / 'base.png', outputs / 'with space.png')
 
     (repo / 'codecheck.yml').write_text(yaml.dump({
-        'version': 'https://codecheck.org.uk/spec/config/1.0/',
+        'version': 'https://codecheck.org.uk/spec/config/2.0/',
         'certificate': '2025-001',
         'report': 'https://doi.org/10.5281/zenodo.1234567',
         'paper': {'title': 'A paper', 'authors': [{'name': 'Author', 'ORCID': '0000-0002-0024-5046'}],

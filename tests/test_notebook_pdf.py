@@ -47,7 +47,7 @@ def pdf_workspace():
             shutil.copy2(config_template, temp_dir / 'codecheck.yml')
             # Update with test-specific values that won't fail validation
             config = {
-                'version': 'https://codecheck.org.uk/spec/config/1.0/',
+                'version': 'https://codecheck.org.uk/spec/config/2.0/',
                 'certificate': '2023-001',
                 'report': 'https://doi.org/10.5281/zenodo.1234567',
                 'paper': {

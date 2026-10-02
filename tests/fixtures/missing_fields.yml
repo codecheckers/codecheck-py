@@ -1,4 +1,4 @@
-version: https://codecheck.org.uk/spec/config/1.0/
+version: https://codecheck.org.uk/spec/config/2.0/
 # Missing mandatory fields: manifest, codechecker, report
 paper:
   title: A Paper Without Required Fields

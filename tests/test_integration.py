@@ -27,7 +27,7 @@ def temp_workspace():
 
     # Create a minimal valid codecheck.yml
     config = {
-        'version': 'https://codecheck.org.uk/spec/config/1.0/',
+        'version': 'https://codecheck.org.uk/spec/config/2.0/',
         'certificate': '2023-001',
         'report': 'https://doi.org/10.5281/zenodo.1234567',
         'paper': {

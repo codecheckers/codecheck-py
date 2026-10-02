@@ -56,7 +56,7 @@ def test_quickstart_creates_pdf(tmp_path):
     (outputs / 'plot.svg').write_text(
         '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10"><rect width="20" height="10" fill="red"/></svg>')
     (repo / 'codecheck.yml').write_text(yaml.dump({
-        'version': 'https://codecheck.org.uk/spec/config/1.0/',
+        'version': 'https://codecheck.org.uk/spec/config/2.0/',
         'certificate': '2025-001',
         'report': 'https://doi.org/10.5281/zenodo.1234567',
         'paper': {

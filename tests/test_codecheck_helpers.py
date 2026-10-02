@@ -11,7 +11,7 @@ from codecheck import Codecheck
 from .conftest import git_commit_all, requires_git
 
 VALID = {
-    'version': 'https://codecheck.org.uk/spec/config/1.0/',
+    'version': 'https://codecheck.org.uk/spec/config/2.0/',
     'certificate': '2023-001',
     'report': 'https://doi.org/10.5281/zenodo.1234567',
     'paper': {'title': 'A title', 'reference': 'https://doi.org/10.1234/x',

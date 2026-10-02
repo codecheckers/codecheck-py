@@ -214,7 +214,7 @@ def test_validate_all_stops_after_syntax_error(tmp_path):
 
 def test_validate_all_strict_fails_on_warnings(tmp_path):
     config = {
-        'version': 'https://codecheck.org.uk/spec/config/1.0/',
+        'version': 'https://codecheck.org.uk/spec/config/2.0/',
         'certificate': '2023-001',
         'report': 'https://doi.org/10.5281/zenodo.1234567',
         'paper': {'title': 'T', 'reference': 'https://doi.org/10.1234/x',

@@ -174,7 +174,7 @@ def test_fetch_skips_openalex_when_all_orcids_are_known():
     assert get.call_count == 1
 
 
-TEMPLATE = f"""version: https://codecheck.org.uk/spec/config/1.0/
+TEMPLATE = f"""version: https://codecheck.org.uk/spec/config/2.0/
 certificate: 2025-023
 
 # the checked paper
