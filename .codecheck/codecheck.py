@@ -201,6 +201,7 @@ This certificate confirms that the codechecker could independently reproduce the
             Limit of columns to display. Defaults to `50`.
         **kwds
             Additional arguments (e.g. index_col=False) that will be handed over to Panda's `read_csv` function.
+            Arguments given here (e.g. `nrows`, `usecols`) take precedence over `max_rows` and `max_cols`.
         """
         full_markdown = []
         for entry in self.conf["manifest"]:
@@ -210,8 +211,13 @@ This certificate confirms that the codechecker could independently reproduce the
             comment = entry.get("comment", None)
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", pd.errors.DtypeWarning)
-                df = pd.read_csv(op.join("outputs", fname), nrows=max_rows, **kwds)
-                df = df.iloc[:, :max_cols]
+                path = op.join("outputs", fname)
+                read_kwds = {"nrows": max_rows, **kwds}
+                if "usecols" not in read_kwds:
+                    # Only parse the first `max_cols` columns, wide files are otherwise very slow
+                    n_cols = pd.read_csv(path, **{**read_kwds, "nrows": 1}).shape[1]
+                    read_kwds["usecols"] = list(range(min(n_cols, max_cols)))
+                df = pd.read_csv(path, **read_kwds).iloc[:, :max_cols]
             markdown = f"""### `{fname}`
 {('Author comment: *' + comment + '*') if comment else ' '}
 
