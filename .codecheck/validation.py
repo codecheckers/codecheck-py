@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime
 import requests
 
-from manifest import find_outputs_dir
+from manifest import existing_file, find_outputs_dir, manifest_file_paths, output_path
 from validation_config import (
     as_list,
     MANDATORY_FIELDS,
@@ -529,6 +529,14 @@ class CodecheckValidator:
                     suggestion="Each manifest entry must have a 'file' field"
                 ))
                 has_errors = True
+            elif not isinstance(entry['file'], str):
+                self.issues.append(ValidationIssue(
+                    level='error',
+                    field=f'manifest[{i}].file',
+                    message=f"Manifest entry {i+1}: 'file' must be a path (text), got {type(entry['file']).__name__}",
+                    suggestion="Quote the file path in codecheck.yml, e.g. file: \"2024\""
+                ))
+                has_errors = True
 
         return not has_errors
 
@@ -555,8 +563,9 @@ class CodecheckValidator:
             # Already caught by mandatory field check
             return False
 
-        missing_files = []
         outputs_dir = find_outputs_dir(base_dir)
+        file_paths = manifest_file_paths(manifest)
+        outside_files = [f for f in file_paths if output_path(outputs_dir, f) is None]
 
         if not outputs_dir.exists():
             self.issues.append(ValidationIssue(
@@ -565,29 +574,30 @@ class CodecheckValidator:
                 message=f"Outputs directory does not exist: {outputs_dir}",
                 suggestion="Create .codecheck/outputs/ (or codecheck/outputs/) directory and copy manifest files there"
             ))
-            return False
+            missing_files = []
+        else:
+            missing_files = [f for f in file_paths if f not in outside_files and existing_file(outputs_dir, f) is None]
 
-        for entry in manifest:
-            if not isinstance(entry, dict):
-                continue
-            file_path = entry.get('file')
-            if not file_path:
-                continue
+        def listing(files):
+            return ', '.join(map(str, files[:5])) + ('...' if len(files) > 5 else '')
 
-            full_path = outputs_dir / file_path
-            if not full_path.exists():
-                missing_files.append(file_path)
+        if outside_files:
+            self.issues.append(ValidationIssue(
+                level='error',
+                field='manifest',
+                message=f"Manifest path(s) outside of the outputs directory: {listing(outside_files)}",
+                suggestion="Use paths relative to the repository root, without '..' and not absolute"
+            ))
 
         if missing_files:
             self.issues.append(ValidationIssue(
                 level='error',
                 field='manifest',
-                message=f"Missing {len(missing_files)} file(s) in outputs/: {', '.join(missing_files[:5])}{'...' if len(missing_files) > 5 else ''}",
+                message=f"Missing {len(missing_files)} file(s) in outputs/: {listing(missing_files)}",
                 suggestion=f"Copy all manifest files to the {outputs_dir.parent.name}/outputs/ directory"
             ))
-            return False
 
-        return True
+        return outputs_dir.exists() and not (missing_files or outside_files)
 
     def validate_register_issue(self, timeout: int = 10) -> bool:
         """

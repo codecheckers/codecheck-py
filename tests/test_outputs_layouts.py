@@ -3,6 +3,8 @@ The outputs directory can be `.codecheck/outputs/` or `codecheck/outputs/`: vali
 Codecheck class have to work with both.
 """
 
+import shutil
+
 import pytest
 import yaml
 
@@ -185,3 +187,80 @@ def test_latex_figures_tolerates_entries_without_comment(layout):
     root, name = layout
     (root / 'codecheck.yml').write_text(yaml.dump({'manifest': [{'file': 'f.pdf'}, 'bad', {'comment': 'x'}]}))
     assert '](<outputs/f.pdf>)' in Codecheck().latex_figures().data
+
+
+def test_paths_outside_outputs(layout):
+    """`../` paths are treated alike everywhere: not found in outputs/, never copied, reported by the validator."""
+    root, name = layout
+    escape = '../../data/a.csv'  # exists as <root>/data/a.csv, but is not inside outputs/
+    (root / 'codecheck.yml').write_text(yaml.dump({'manifest': [{'file': escape}]}))
+    processor = ManifestProcessor([{'file': escape}], root)
+    assert processor.validate_output_files_exist() == (False, [escape])
+    assert processor.get_file_sizes() == {}
+    assert processor.copy_manifest_files(source_dir=root / name) == []  # <root>/name/../../data is outside the source
+    validator = CodecheckValidator(str(root / 'codecheck.yml'))
+    validator.validate_yaml_syntax()
+    assert validator.validate_manifest_files() is False
+    assert [i.message for i in validator.issues] == [f'Manifest path(s) outside of the outputs directory: {escape}']
+
+
+def test_copy_skips_directories(layout):
+    root, name = layout
+    processor = ManifestProcessor([{'file': 'data'}], root)
+    assert processor.copy_manifest_files() == []
+
+
+def test_source_files_outside_base_count_as_missing(layout):
+    root, name = layout
+    processor = ManifestProcessor([{'file': '../data/a.csv'}], root / name)  # <root>/data/a.csv exists
+    assert processor.validate_files_exist() == (False, ['../data/a.csv'])
+    assert ManifestProcessor(MANIFEST, root).validate_files_exist() == (True, [])
+
+
+def test_copy_into_symlinked_directory(layout):
+    """outputs/data may link to the original data/: copying neither fails (same file) nor writes outside outputs/."""
+    root, name = layout
+    shutil.rmtree(root / name / 'outputs' / 'data')
+    (root / name / 'outputs' / 'data').symlink_to(root / 'data')
+    processor = ManifestProcessor(MANIFEST, root)
+    assert processor.validate_output_files_exist() == (True, [])
+    assert processor.copy_manifest_files() == []  # same file
+    (root / 'other' / 'data').mkdir(parents=True)
+    (root / 'other' / 'data' / 'a.csv').write_text('other\n')
+    assert processor.copy_manifest_files(source_dir=root / 'other') == []  # would write through the link into data/
+    assert (root / 'data' / 'a.csv').read_text() == 'x,y\n1,2\n'
+
+
+def test_directories_are_not_manifest_files(layout):
+    root, name = layout
+    (root / 'codecheck.yml').write_text(yaml.dump({'manifest': [{'file': '.'}, {'file': 'data'}]}))
+    processor = ManifestProcessor([{'file': '.'}, {'file': 'data'}], root)
+    assert processor.validate_output_files_exist() == (False, ['.', 'data'])
+    assert processor.get_file_sizes() == {}
+    validator = CodecheckValidator(str(root / 'codecheck.yml'))
+    validator.validate_yaml_syntax()
+    assert validator.validate_manifest_files() is False
+
+
+def test_outside_paths_reported_without_outputs_dir(tmp_path):
+    (tmp_path / 'codecheck.yml').write_text(yaml.dump({'manifest': [{'file': '../secret.csv'}]}))
+    validator = CodecheckValidator(str(tmp_path / 'codecheck.yml'))
+    validator.validate_yaml_syntax()
+    assert validator.validate_manifest_files() is False
+    messages = [i.message for i in validator.issues]
+    assert any('Outputs directory does not exist' in m for m in messages)
+    assert 'Manifest path(s) outside of the outputs directory: ../secret.csv' in messages
+
+
+def test_non_string_file_paths(layout):
+    """`file: 2024` in YAML is an int: reported by the structure check, no crash elsewhere."""
+    root, name = layout
+    (root / 'codecheck.yml').write_text('manifest:\n  - file: 2024\n')
+    validator = CodecheckValidator(str(root / 'codecheck.yml'))
+    validator.validate_yaml_syntax()
+    assert validator.validate_manifest_structure() is False
+    assert validator.validate_manifest_files() is False  # missing, no TypeError
+    processor = ManifestProcessor([{'file': 2024}], root)
+    assert processor.validate_output_files_exist() == (False, [2024])
+    assert processor.get_manifest_summary()['total_files'] == 1
+    assert '2024' in Codecheck().manifest_files().data

@@ -332,7 +332,8 @@ def test_malformed_entries_are_skipped(temp_workspace):
     assert processor.get_file_sizes(use_outputs=False) == {'figures/plot1.png': (temp_workspace / 'figures' / 'plot1.png').stat().st_size}
     assert processor.get_file_sizes(use_outputs=True) == {}
     assert processor.copy_manifest_files() != []
-    assert processor.get_manifest_summary()['file_types'] == {'': 2, '.png': 1}
+    summary = processor.get_manifest_summary()
+    assert summary['file_types'] == {'.png': 1} and summary['total_files'] == 1 and summary['has_comments'] == 1
 
 
 def test_validate_output_files_exist_without_outputs_dir(tmp_path):

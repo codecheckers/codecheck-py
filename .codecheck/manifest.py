@@ -35,8 +35,19 @@ def output_path(outputs_dir, file_path) -> Optional[Path]:
     The check is lexical: symlinks in `outputs_dir` (e.g. to large original files) are not resolved.
     """
     outputs_dir = Path(os.path.normpath(outputs_dir))
-    path = Path(os.path.normpath(outputs_dir / file_path))
+    path = Path(os.path.normpath(outputs_dir / str(file_path)))
     return path if path.is_relative_to(outputs_dir) else None
+
+
+def existing_file(base, file_path) -> Optional[Path]:
+    """Path of a manifest file in `base` if it is inside `base` (see `output_path()`) and is a file, otherwise None."""
+    path = output_path(base, file_path)
+    return path if path is not None and path.is_file() else None
+
+
+def manifest_file_paths(manifest) -> List:
+    """File paths of the well-formed manifest entries; entries that are no mappings or have no file are skipped."""
+    return [e['file'] for e in manifest if isinstance(e, dict) and e.get('file')] if isinstance(manifest, list) else []
 
 
 class ManifestProcessor:
@@ -69,7 +80,7 @@ class ManifestProcessor:
 
     def _file_paths(self):
         """File paths of the well-formed manifest entries."""
-        return (e['file'] for e in self._entries())
+        return manifest_file_paths(self.manifest)
 
     def validate_files_exist(self, source_dir: Optional[Path] = None) -> Tuple[bool, List[str]]:
         """
@@ -88,13 +99,7 @@ class ManifestProcessor:
         if source_dir is None:
             source_dir = self.base_dir
 
-        missing = []
-        for file_path in self._file_paths():
-
-            full_path = Path(source_dir) / file_path
-            if not full_path.exists():
-                missing.append(file_path)
-
+        missing = [f for f in self._file_paths() if existing_file(source_dir, f) is None]
         return len(missing) == 0, missing
 
     def validate_output_files_exist(self) -> Tuple[bool, List[str]]:
@@ -109,13 +114,8 @@ class ManifestProcessor:
         if not self.outputs_dir.exists():
             return False, list(self._file_paths())
 
-        missing = []
-        for file_path in self._file_paths():
-
-            full_path = self.outputs_dir / file_path
-            if not full_path.exists():
-                missing.append(file_path)
-
+        # paths outside of outputs/ count as missing
+        missing = [f for f in self._file_paths() if existing_file(self.outputs_dir, f) is None]
         return len(missing) == 0, missing
 
     def get_file_sizes(self, use_outputs: bool = True) -> Dict[str, int]:
@@ -137,9 +137,8 @@ class ManifestProcessor:
         base = self.outputs_dir if use_outputs else self.base_dir
 
         for file_path in self._file_paths():
-
-            full_path = base / file_path
-            if full_path.exists():
+            full_path = existing_file(base, file_path)
+            if full_path is not None:
                 sizes[file_path] = full_path.stat().st_size
 
         return sizes
@@ -156,13 +155,11 @@ class ManifestProcessor:
         mismatches = []
         actual_sizes = self.get_file_sizes(use_outputs=True)
 
-        for entry in self.manifest:
-            if not isinstance(entry, dict):
-                continue
-            file_path = entry.get('file')
+        for entry in self._entries():
+            file_path = entry['file']
             declared_size = entry.get('size')
 
-            if not file_path or declared_size is None:
+            if declared_size is None:
                 continue
 
             actual_size = actual_sizes.get(file_path)
@@ -214,22 +211,20 @@ class ManifestProcessor:
         for entry in self._entries():
             file_path = entry['file']
 
-            src = source_dir / file_path
+            src = output_path(source_dir, file_path)
+            dst = output_path(self.outputs_dir, file_path if keep_full_path else Path(file_path).name)
 
-            if not src.exists():
-                # Skip missing files (should be caught by validation)
+            if src is None or dst is None or not src.is_file():
+                # Skip missing files and paths outside of the source or outputs directory (caught by validation)
                 continue
 
-            # Determine destination path
-            if keep_full_path:
-                dst = self.outputs_dir / file_path
-                if not dry_run:
-                    dst.parent.mkdir(parents=True, exist_ok=True)
-            else:
-                dst = self.outputs_dir / Path(file_path).name
+            if keep_full_path and not dry_run:
+                dst.parent.mkdir(parents=True, exist_ok=True)
 
-            # Check if we should overwrite
-            if dst.exists() and not overwrite:
+            # Check if we should overwrite; never write through a symlink to the source or out of outputs/
+            if dst.exists() and (not overwrite or dst.samefile(src)):
+                continue
+            if not dst.resolve().is_relative_to(self.outputs_dir.resolve()):
                 continue
 
             # Copy the file
@@ -255,25 +250,22 @@ class ManifestProcessor:
         dict
             Summary with file counts, total size, etc.
         """
-        total_files = len(self.manifest)
+        file_paths = self._file_paths()
         sizes = self.get_file_sizes(use_outputs=True)
         total_size = sum(sizes.values())
 
         # Count file types
         extensions = {}
-        for entry in self.manifest:
-            if not isinstance(entry, dict):
-                continue
-            file_path = entry.get('file', '')
-            ext = Path(file_path).suffix.lower()
+        for file_path in file_paths:
+            ext = Path(str(file_path)).suffix.lower()
             extensions[ext] = extensions.get(ext, 0) + 1
 
         return {
-            'total_files': total_files,
+            'total_files': len(file_paths),
             'total_size': total_size,
             'total_size_mb': round(total_size / (1024 * 1024), 2),
             'file_types': extensions,
-            'has_comments': sum(1 for e in self.manifest if isinstance(e, dict) and e.get('comment'))
+            'has_comments': sum(1 for e in self._entries() if e.get('comment'))
         }
 
     def validate_paths(self) -> Tuple[bool, List[str]]:
@@ -286,11 +278,7 @@ class ManifestProcessor:
             (all_safe: bool, unsafe_paths: List[str])
         """
         unsafe = []
-        for entry in self.manifest:
-            if not isinstance(entry, dict):
-                continue
-            file_path = entry.get('file', '')
-
+        for file_path in self._file_paths():
             # Check for path traversal attempts (absolute paths, `..`) and symlinks that lead outside
             if (output_path(self.outputs_dir, file_path) is None
                     or not (self.outputs_dir / file_path).resolve().is_relative_to(self.outputs_dir.resolve())):
