@@ -13,7 +13,7 @@ fi
 
 # Convert notebook to Markdown
 echo "[CODECHECK - Py] Converting $NOTEBOOK.ipynb to Markdown..."
-jupyter nbconvert --to markdown --no-input --no-prompt --execute --LatexExporter.template_file nbconvert_template.tex.j2 "$NOTEBOOK.ipynb"
+jupyter nbconvert --to markdown --no-input --no-prompt --execute "$NOTEBOOK.ipynb"
 
 # Wait until Markdown is created
 echo "[CODECHECK - Py] Waiting for $MARKDOWN_FILE to be created..."

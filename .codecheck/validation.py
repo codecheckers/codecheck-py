@@ -584,7 +584,7 @@ class CodecheckValidator:
                 level='error',
                 field='manifest',
                 message=f"Outputs directory does not exist: {outputs_dir}",
-                suggestion="Create codecheck/outputs/ directory and copy manifest files there"
+                suggestion="Create .codecheck/outputs/ directory and copy manifest files there"
             ))
             return False
 
@@ -604,7 +604,7 @@ class CodecheckValidator:
                 level='error',
                 field='manifest',
                 message=f"Missing {len(missing_files)} file(s) in outputs/: {', '.join(missing_files[:5])}{'...' if len(missing_files) > 5 else ''}",
-                suggestion="Copy all manifest files to codecheck/outputs/ directory"
+                suggestion="Copy all manifest files to .codecheck/outputs/ directory"
             ))
             return False
 

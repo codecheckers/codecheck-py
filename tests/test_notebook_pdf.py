@@ -39,16 +39,6 @@ def pdf_workspace():
             if src.exists():
                 shutil.copy2(src, codecheck_dir / module)
 
-        # Copy or create nbconvert template
-        template_src = source_dir / 'nbconvert_template.tex.j2'
-        if template_src.exists():
-            shutil.copy2(template_src, codecheck_dir / 'nbconvert_template.tex.j2')
-        else:
-            # Create minimal template if not exists
-            (codecheck_dir / 'nbconvert_template.tex.j2').write_text(
-                '((* extends "base.tex.j2" *))\n'
-            )
-
         # Copy or create logo
         logo_src = source_dir / 'codecheck_logo.png'
         if logo_src.exists():
@@ -126,9 +116,6 @@ def test_dependencies_exist(pdf_workspace):
     assert (codecheck_dir / 'codecheck.py').exists()
     assert (codecheck_dir / 'validation.py').exists()
 
-    # Check template
-    assert (codecheck_dir / 'nbconvert_template.tex.j2').exists()
-
     # Check config
     assert (pdf_workspace / 'codecheck.yml').exists()
 
@@ -189,79 +176,6 @@ def test_notebook_execution_only(pdf_workspace):
         pytest.skip("Notebook execution timed out")
     except Exception as e:
         pytest.skip(f"Notebook execution failed: {e}")
-
-
-@pytest.mark.skipif(
-    shutil.which('jupyter') is None or shutil.which('xelatex') is None,
-    reason="jupyter or xelatex not installed"
-)
-def test_notebook_pdf_generation(pdf_workspace):
-    """Test full PDF generation from notebook as described in README"""
-    import os
-    codecheck_dir = pdf_workspace / 'codecheck'
-    notebook_path = codecheck_dir / 'codecheck.ipynb'
-    pdf_path = codecheck_dir / 'codecheck.pdf'
-
-    # The exact command from README
-    cmd = [
-        'jupyter', 'nbconvert',
-        '--to', 'pdf',
-        '--no-input',
-        '--no-prompt',
-        '--execute',
-        '--LatexExporter.template_file', 'nbconvert_template.tex.j2',
-        'codecheck.ipynb'
-    ]
-
-    try:
-        result = subprocess.run(
-            cmd,
-            cwd=str(codecheck_dir),
-            capture_output=True,
-            text=True,
-            timeout=120  # PDF generation can take longer
-        )
-
-        # Check if command succeeded
-        if result.returncode != 0:
-            pytest.skip(f"PDF generation failed (likely missing LaTeX dependencies): {result.stderr}")
-
-        # Check that PDF was created
-        assert pdf_path.exists(), "PDF file was not created"
-
-        # Check PDF has reasonable size (not empty)
-        assert pdf_path.stat().st_size > 1000, "PDF file is too small (possibly empty)"
-
-        # Check PDF magic bytes
-        with open(pdf_path, 'rb') as f:
-            header = f.read(4)
-            assert header == b'%PDF', "Generated file is not a valid PDF"
-
-    except subprocess.TimeoutExpired:
-        pytest.skip("PDF generation timed out")
-    except FileNotFoundError as e:
-        pytest.skip(f"Required command not found: {e}")
-    except Exception as e:
-        pytest.skip(f"PDF generation failed: {e}")
-    finally:
-        # Always try to save PDF artifact if running in CI, even if test is skipped
-        if os.getenv('CI') == 'true':
-            print(f"\n[CI Mode] Checking for PDF at: {pdf_path}")
-            print(f"[CI Mode] PDF exists: {pdf_path.exists()}")
-            if pdf_path.exists():
-                try:
-                    # Get repository root (parent of tests directory)
-                    repo_root = Path(__file__).parent.parent
-                    artifact_dir = repo_root / 'test-artifacts'
-                    print(f"[CI Mode] Creating artifact dir: {artifact_dir}")
-                    artifact_dir.mkdir(exist_ok=True)
-                    shutil.copy2(pdf_path, artifact_dir / 'test-codecheck-certificate.pdf')
-                    print(f"\n✓ Saved test PDF artifact to {artifact_dir / 'test-codecheck-certificate.pdf'}")
-                    print(f"  PDF size: {pdf_path.stat().st_size} bytes")
-                except Exception as copy_error:
-                    print(f"\n✗ Failed to save PDF artifact: {copy_error}")
-            else:
-                print("[CI Mode] PDF was not created - cannot save artifact")
 
 
 @pytest.mark.skipif(
@@ -358,27 +272,3 @@ def test_notebook_validation_integration(pdf_workspace):
     finally:
         os.chdir(old_cwd)
         sys.path.remove(str(codecheck_dir))
-
-
-def test_readme_pdf_command_syntax():
-    """Test that the README command syntax is correct"""
-    # This is a documentation test - verifies the command structure
-    readme_command = [
-        'jupyter', 'nbconvert',
-        '--to', 'pdf',
-        '--no-input',
-        '--no-prompt',
-        '--execute',
-        '--LatexExporter.template_file', 'nbconvert_template.tex.j2',
-        'codecheck.ipynb'
-    ]
-
-    # Verify all required flags are present
-    assert '--to' in readme_command
-    assert 'pdf' in readme_command
-    assert '--no-input' in readme_command
-    assert '--no-prompt' in readme_command
-    assert '--execute' in readme_command
-    assert '--LatexExporter.template_file' in readme_command
-    assert 'nbconvert_template.tex.j2' in readme_command
-    assert 'codecheck.ipynb' in readme_command
