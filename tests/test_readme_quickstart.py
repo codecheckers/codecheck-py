@@ -16,15 +16,15 @@ README = (ROOT / 'README.md').read_text()
 
 
 def documented_template_files():
-    """File names from the `cp .../.codecheck/{a,b,c} .codecheck/` line in the README."""
-    match = re.search(r'\.codecheck/\{([^}]+)\} \.codecheck/', README)
+    """File names matched by the `cp .../.codecheck/*.{a,b,c} .codecheck/` line in the README."""
+    match = re.search(r'\.codecheck/\*\.\{([^}]+)\} \.codecheck/', README)
     assert match, "README must document which .codecheck/ files to copy"
-    return match.group(1).split(',')
+    return sorted(p.name for ext in match.group(1).split(',') for p in (ROOT / '.codecheck').glob(f'*.{ext}'))
 
 
-def test_documented_files_exist():
-    for name in documented_template_files():
-        assert (ROOT / '.codecheck' / name).is_file(), f"README mentions missing file {name}"
+def test_documented_files_include_the_template():
+    assert {'codecheck.py', 'codecheck.ipynb', 'codecheck.typ', 'codecheck_logo.svg', 'notebook_to_pdf.sh',
+            'register.py'} <= set(documented_template_files())
 
 
 def test_readme_run_command_points_to_existing_script():

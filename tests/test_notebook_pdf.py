@@ -34,10 +34,8 @@ def pdf_workspace():
         source_dir = project_root / '.codecheck'
 
         # Copy Python modules
-        for module in ['codecheck.py', 'validation.py', 'validation_config.py', 'manifest.py']:
-            src = source_dir / module
-            if src.exists():
-                shutil.copy2(src, codecheck_dir / module)
+        for src in source_dir.glob('*.py'):
+            shutil.copy2(src, codecheck_dir / src.name)
 
         # Copy logo
         shutil.copy2(source_dir / 'codecheck_logo.svg', codecheck_dir / 'codecheck_logo.svg')

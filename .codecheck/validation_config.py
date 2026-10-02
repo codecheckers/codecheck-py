@@ -2,6 +2,8 @@
 Configuration constants for codecheck.yml validation
 """
 
+import re
+
 # Directories (relative to the repository root) that can contain the CODECHECK files and the `outputs/` directory,
 # in order of preference: `.codecheck/` (default) or `codecheck/`
 TEMPLATE_DIRS = ('.codecheck', 'codecheck')
@@ -29,7 +31,8 @@ PLACEHOLDER_PATTERNS = {
 }
 
 # Expected formats for validation
-CERTIFICATE_FORMAT = r'^\d{4}-\d{3}$'  # YYYY-NNN (e.g., 2023-001)
+CERTIFICATE_ID = r'\d{4}-\d{3}'  # YYYY-NNN (e.g., 2023-001)
+CERTIFICATE_FORMAT = rf'^{CERTIFICATE_ID}$'
 ORCID_FORMAT = r'^\d{4}-\d{4}-\d{4}-\d{3}[0-9X]$'  # Standard ORCID format
 DOI_FORMAT = r'^10\.\d{4,}/[^\s]+$'  # Basic DOI format
 ISO_DATE_FORMAT = r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$'  # ISO 8601 basic format
@@ -44,3 +47,8 @@ MANIFEST_ENTRY_FIELDS = ['file']  # 'comment' is optional
 def as_list(value):
     """A single person (dict) is allowed in `codecheck.yml` in place of a list of people."""
     return [value] if isinstance(value, dict) else value
+
+
+def is_placeholder_certificate(cert) -> bool:
+    """Whether a certificate ID is a placeholder such as `YYYY-001` (no ID assigned yet)."""
+    return isinstance(cert, str) and any(re.match(p, cert) for p in PLACEHOLDER_PATTERNS['certificate_patterns'])

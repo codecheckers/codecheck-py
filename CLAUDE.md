@@ -31,6 +31,7 @@ codecheck-py/
     ├── validation.py        # `CodecheckValidator` for codecheck.yml
     ├── validation_config.py # Constants: mandatory fields, regexes, placeholder patterns
     ├── manifest.py          # `ManifestProcessor`: manifest summary, existence check, file copying
+    ├── register.py          # GitHub API access to the codecheckers/register issues (pagination, token, certificate lookup)
     └── outputs/             # Reproduced outputs from the manifest (gitignored)
 ```
 
@@ -53,12 +54,14 @@ repository-root/
    - `manifest_files()` (per-file sections by type: tables, text/JSON, images; checksums; never raises), `csv_files()` (CSV only), `git_info()` (commit SHA), `latex_figures()` (legacy PDF/EPS figure inclusion)
    - `session_info()` (via `session_info2`)
    - Validation: `validate()`, `validation_report()`, and `Codecheck(validate=True, strict=...)`
+   - Register: `find_certificate_id(name=None)` (register issues with the first author's surname in the title and their certificate IDs)
    - Manifest: `validate_manifest_files()`, `manifest_summary()`, `copy_manifest_files()`
    - Module-level helpers: `name_orcid`, `multiple_name_orcid`, `multiple_name`, `url_link`, `short_link`
-2. **`validation.py` / `validation_config.py`**: checks YAML syntax, mandatory fields, placeholders (FIXME/TODO/example/...), certificate ID (`YYYY-NNN`), ORCID, DOI/URL, ISO dates, paper/codechecker/manifest structure, manifest file existence in `outputs/`, and (via `requests`) that a matching issue exists in the [codecheckers/register](https://github.com/codecheckers/register). Network errors only warn. Non-strict mode fails on errors only; strict mode also fails on warnings.
-3. **`manifest.py`**: `ManifestProcessor` for manifest summary stats, output-file existence and copying files into `outputs/`.
-4. **`codecheck.ipynb`**: template notebook using the `Codecheck` class.
-5. **`codecheck.typ`**: Typst document that `read("codecheck.md")` and renders the final PDF.
+2. **`validation.py` / `validation_config.py`**: checks YAML syntax, mandatory fields, placeholders (FIXME/TODO/example/...), certificate ID (`YYYY-NNN`), ORCID, DOI/URL, ISO dates, paper/codechecker/manifest structure, manifest file existence in `outputs/`, and (via `register.py`) that a matching issue exists in the [codecheckers/register](https://github.com/codecheckers/register); for a placeholder certificate ID it adds an `info` issue with candidate IDs, also when the lookup fails (info never fails validation). Network errors only warn. Non-strict mode fails on errors only; strict mode also fails on warnings.
+3. **`register.py`**: `iter_register_issues()` reads the register issues page by page while they are consumed (follows the `Link` header, skips pull requests, token from `GITHUB_TOKEN`/`GITHUB_PAT`, raises `RequestException` after `MAX_PAGES` instead of pretending a complete scan; `find_issue()` stops at the match), `fetch_register_issues()` returns all; `certificate_candidates()` matches a name as a whole word without diacritics; `find_issue()` matches the exact certificate ID. Tests mock `register.requests.get`.
+4. **`manifest.py`**: `ManifestProcessor` for manifest summary stats, output-file existence and copying files into `outputs/`.
+5. **`codecheck.ipynb`**: template notebook using the `Codecheck` class.
+6. **`codecheck.typ`**: Typst document that `read("codecheck.md")` and renders the final PDF.
 
 ### Configuration File (`codecheck.yml`)
 
@@ -93,7 +96,7 @@ The script (1) deletes the old `codecheck.md`, (2) runs `jupyter nbconvert --to 
 pytest tests/ -v
 pytest tests/ -v --cov=. --cov-report=term-missing
 ```
-`tests/conftest.py` puts `.codecheck/` on `sys.path` (no per-file path setup) and provides the image fixtures (`tests/data/base.png` converted to other formats at test time) and the `section()` helper. Tests cover validation, manifest handling, the GitHub register check (mocked), integration and PDF generation. CI (`.github/workflows/test.yml`) runs on push/PR to `main`.
+`tests/conftest.py` puts `.codecheck/` on `sys.path` (no per-file path setup) and provides the image fixtures (`tests/data/base.png` converted to other formats at test time) and the `section()` helper. Tests cover validation, manifest handling, the GitHub register check (mocked), integration and PDF generation. `test_readme_quickstart.py` copies exactly the files matched by the README quick start line `cp .../.codecheck/*.{py,ipynb,typ,svg,sh} .codecheck/` and builds the PDF; a template file with another extension has to be added there. CI (`.github/workflows/test.yml`) runs on push/PR to `main`.
 
 ## Default Procedure for Changes
 

@@ -48,7 +48,7 @@ files** (not `tests/`, `CLAUDE.md`, `.github/`, etc.) and the example config:
 ```bash
 cd /path/to/repository-to-check
 mkdir -p .codecheck/outputs
-cp /path/to/codecheck-py/.codecheck/{codecheck.py,codecheck.ipynb,codecheck.typ,codecheck_logo.svg,notebook_to_pdf.sh,validation.py,validation_config.py,manifest.py} .codecheck/
+cp /path/to/codecheck-py/.codecheck/*.{py,ipynb,typ,svg,sh} .codecheck/
 cp /path/to/codecheck-py/codecheck.yml .      # then edit it, see step 3
 ```
 
@@ -141,6 +141,7 @@ repository-root/
     ├── validation.py                # Validation module
     ├── validation_config.py         # Validation configuration
     ├── manifest.py                  # Manifest processing
+    ├── register.py                  # CODECHECK register issues (GitHub API)
     ├── codecheck.md                 # Generated Markdown (intermediate output)
     ├── codecheck.pdf                # Generated certificate (output)
     └── outputs/                     # Reproduced files from manifest
@@ -273,12 +274,19 @@ The validation system performs the following checks on your `codecheck.yml` file
 #### 12. **GitHub Register Issue Verification**
 
 - ✓ Checks if a GitHub issue exists in [codecheckers/register](https://github.com/codecheckers/register)
-- ✓ Searches for issue with certificate ID in title
+- ✓ Searches all open and closed issues (all pages) for the certificate ID in the title
 - **ERROR** if no matching issue found
 - **WARNING** if issue is closed
 - **WARNING** if issue is unassigned
+- **INFO** if the certificate ID is still a placeholder (`YYYY-001`, ...): lists the register issues with the surname of
+  the first author in the title and their certificate IDs (never written to `codecheck.yml`)
 - ✓ Can be disabled with `check_register=False`
 - ✓ Gracefully handles network errors (warns but doesn't fail)
+- ✓ Uses a `GITHUB_TOKEN` or `GITHUB_PAT` environment variable if set (the GitHub API allows 60 requests per hour without
+  a token)
+
+To look up the certificate ID in the notebook, `check.find_certificate_id()` shows the matching register issues as a
+table (`check.find_certificate_id(name="Surname")` searches for another name).
 
 ### Validation Modes
 
@@ -346,7 +354,7 @@ pytest tests/ -v --cov=. --cov-report=term-missing
 The test suite includes:
 
 - 50+ unit tests for validation functions
-- 14 tests for GitHub register issue verification
+- Tests for the GitHub register issue verification and the certificate ID lookup (mocked API, incl. pagination)
 - Integration tests for the complete workflow
 - Tests with various invalid configurations
 - Fixture-based testing with example configurations

@@ -11,12 +11,14 @@ from datetime import datetime
 import requests
 
 from manifest import existing_file, find_outputs_dir, manifest_file_paths, output_path
+from register import certificate_candidates, describe, find_issue, first_author_surname, iter_register_issues
 from validation_config import (
     as_list,
     MANDATORY_FIELDS,
     OPTIONAL_FIELDS,
     PLACEHOLDER_PATTERNS,
     CERTIFICATE_FORMAT,
+    is_placeholder_certificate,
     ORCID_FORMAT,
     DOI_FORMAT,
     ISO_DATE_FORMAT,
@@ -208,15 +210,14 @@ class CodecheckValidator:
             return False
 
         # Check placeholder patterns
-        for pattern in PLACEHOLDER_PATTERNS['certificate_patterns']:
-            if re.match(pattern, cert):
-                self.issues.append(ValidationIssue(
-                    level='warning',
-                    field='certificate',
-                    message=f"Certificate ID '{cert}' appears to be a placeholder",
-                    suggestion="Replace with actual certificate ID (format: YYYY-NNN)"
-                ))
-                return False
+        if is_placeholder_certificate(cert):
+            self.issues.append(ValidationIssue(
+                level='warning',
+                field='certificate',
+                message=f"Certificate ID '{cert}' appears to be a placeholder",
+                suggestion="Replace with actual certificate ID (format: YYYY-NNN)"
+            ))
+            return False
 
         # Validate format
         if not re.match(CERTIFICATE_FORMAT, cert):
@@ -599,6 +600,35 @@ class CodecheckValidator:
 
         return outputs_dir.exists() and not (missing_files or outside_files)
 
+    def _suggest_certificate(self, name: str, timeout: int) -> bool:
+        """Info with the register issues that may belong to this check (when the certificate ID is a placeholder)."""
+        try:
+            candidates = certificate_candidates(iter_register_issues(timeout=timeout), name)
+        except Exception as e:  # never fail validation because of the lookup (network, rate limit, ...)
+            self.issues.append(ValidationIssue(
+                level='info',
+                field='certificate',
+                message=f"Could not look up '{name}' (first author) in the register issues: {e}",
+                suggestion="Look up the certificate ID at https://github.com/codecheckers/register/issues"
+            ))
+            return True
+        if candidates:
+            self.issues.append(ValidationIssue(
+                level='info',
+                field='certificate',
+                message=f"Register issue(s) with '{name}' (first author) in the title: "
+                        + '; '.join(describe(c) for c in candidates[:5]),
+                suggestion="Use the certificate ID of the issue for this check in codecheck.yml"
+            ))
+        else:
+            self.issues.append(ValidationIssue(
+                level='info',
+                field='certificate',
+                message=f"No issue in codecheckers/register has '{name}' (first author) in the title",
+                suggestion="Ask the CODECHECK editors for a certificate ID: https://github.com/codecheckers/register/issues"
+            ))
+        return True
+
     def validate_register_issue(self, timeout: int = 10) -> bool:
         """
         Validate that a GitHub issue exists for this certificate in the CODECHECK register.
@@ -625,38 +655,18 @@ class CodecheckValidator:
             # Invalid certificate format, already caught by other validation
             return True
 
-        # Check if certificate is a placeholder
-        for pattern in PLACEHOLDER_PATTERNS['certificate_patterns']:
-            if re.match(pattern, cert):
-                # Placeholder certificate, skip register check
-                return True
+        if is_placeholder_certificate(cert):
+            # No certificate ID yet: suggest the IDs of register issues with the first author in the title
+            name = first_author_surname(self.config)
+            return self._suggest_certificate(name, timeout) if name else True
 
-        # Validate certificate format
         if not re.match(CERTIFICATE_FORMAT, cert):
             # Invalid format, already caught by validate_certificate_id
             return True
 
         try:
-            # Search for issues with the certificate ID in the title
-            # Using GitHub API v3 (REST API)
-            url = "https://api.github.com/repos/codecheckers/register/issues"
-            params = {
-                'state': 'all',  # Include both open and closed issues
-                'per_page': 100  # Get up to 100 results
-            }
-
-            response = requests.get(url, params=params, timeout=timeout)
-            response.raise_for_status()
-
-            issues = response.json()
-
-            # Find issue with certificate ID in title
-            matching_issue = None
-            for issue in issues:
-                # Check if certificate ID appears in the issue title
-                if cert in issue.get('title', ''):
-                    matching_issue = issue
-                    break
+            # Find issue with certificate ID in title (newest first, pages are only requested until it is found)
+            matching_issue = find_issue(iter_register_issues(timeout=timeout), cert)
 
             if not matching_issue:
                 # No matching issue found - this is an error

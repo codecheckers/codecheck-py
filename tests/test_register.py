@@ -62,6 +62,7 @@ def test_validate_register_issue_found_open_assigned(mock_get):
         }
     ]
     mock_response.raise_for_status = MagicMock()
+    mock_response.links = {}
     mock_get.return_value = mock_response
 
     result = validator.validate_register_issue()
@@ -88,6 +89,7 @@ def test_validate_register_issue_not_found(mock_get):
         }
     ]
     mock_response.raise_for_status = MagicMock()
+    mock_response.links = {}
     mock_get.return_value = mock_response
 
     result = validator.validate_register_issue()
@@ -118,6 +120,7 @@ def test_validate_register_issue_closed(mock_get):
         }
     ]
     mock_response.raise_for_status = MagicMock()
+    mock_response.links = {}
     mock_get.return_value = mock_response
 
     result = validator.validate_register_issue()
@@ -148,6 +151,7 @@ def test_validate_register_issue_unassigned(mock_get):
         }
     ]
     mock_response.raise_for_status = MagicMock()
+    mock_response.links = {}
     mock_get.return_value = mock_response
 
     result = validator.validate_register_issue()
@@ -178,6 +182,7 @@ def test_validate_register_issue_closed_and_unassigned(mock_get):
         }
     ]
     mock_response.raise_for_status = MagicMock()
+    mock_response.links = {}
     mock_get.return_value = mock_response
 
     result = validator.validate_register_issue()
@@ -264,6 +269,7 @@ def test_validate_all_includes_register_check(mock_get, fixtures_dir):
         }
     ]
     mock_response.raise_for_status = MagicMock()
+    mock_response.links = {}
     mock_get.return_value = mock_response
 
     validator = CodecheckValidator(fixtures_dir / 'valid_codecheck.yml')
@@ -302,6 +308,7 @@ def test_validate_register_issue_partial_match(mock_get):
         }
     ]
     mock_response.raise_for_status = MagicMock()
+    mock_response.links = {}
     mock_get.return_value = mock_response
 
     result = validator.validate_register_issue()

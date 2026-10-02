@@ -106,9 +106,10 @@ def test_all_supported_formats_in_pdf(tmp_path, image_dir):
     repo = tmp_path / 'repo'
     outputs = repo / '.codecheck' / 'outputs'
     outputs.mkdir(parents=True)
-    for name in ['codecheck.py', 'codecheck.ipynb', 'codecheck.typ', 'codecheck_logo.svg', 'notebook_to_pdf.sh',
-                 'validation.py', 'validation_config.py', 'manifest.py']:
+    for name in ['codecheck.ipynb', 'codecheck.typ', 'codecheck_logo.svg', 'notebook_to_pdf.sh']:
         shutil.copy2(ROOT / '.codecheck' / name, repo / '.codecheck' / name)
+    for src in (ROOT / '.codecheck').glob('*.py'):
+        shutil.copy2(src, repo / '.codecheck' / src.name)
     for name in names:
         shutil.copy2(image_dir / name, outputs / name)
     shutil.copy2(image_dir / 'base.png', outputs / 'with space.png')

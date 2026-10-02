@@ -18,6 +18,7 @@ from datetime import datetime
 from pathlib import Path
 
 from manifest import ManifestProcessor, find_outputs_dir, output_path
+from register import certificate_candidates, fetch_register_issues, first_author_surname, markdown_row
 from validation import CodecheckValidator
 from validation_config import TEMPLATE_DIRS, as_list
 
@@ -511,6 +512,29 @@ This certificate confirms that the codechecker could independently reproduce the
             check_register=check_register,
             strict=strict
         )
+
+    def find_certificate_id(self, name=None, timeout=10):
+        """
+        Markdown list of the CODECHECK register issues that may belong to this check, with their certificate IDs:
+        open and closed issues with `name` in the title (default: surname of the first author of the paper). For
+        looking up the certificate ID; `codecheck.yml` is never changed. Network problems are reported in the output.
+        A `GITHUB_TOKEN` or `GITHUB_PAT` environment variable raises the GitHub API rate limit.
+        """
+        name = name or first_author_surname(self.conf)
+        if not name:
+            return Markdown("*No name to search for: add the authors of the paper to `codecheck.yml`.*")
+        try:
+            candidates = certificate_candidates(fetch_register_issues(timeout=timeout), name)
+        except Exception as e:  # network, rate limit, unexpected response: never stop the notebook
+            return Markdown(f"*Could not read the CODECHECK register issues: {e}*")
+        if not candidates:
+            return Markdown(f"*No issue in the CODECHECK register has `{name}` in the title.*")
+        rows = [markdown_row(c) for c in candidates]
+        return Markdown(f"""Register issues with `{name}` in the title:
+
+Certificate | Issue | State | Assignees
+:--- | :--- | :--- | :---
+""" + "\n".join(rows))
 
     def validation_report(self, markdown=True):
         """
