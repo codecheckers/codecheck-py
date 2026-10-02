@@ -55,8 +55,8 @@ cp /path/to/codecheck-py/codecheck.yml .      # then edit it, see step 3
 ### 3. Fill in `codecheck.yml`
 
 Edit `codecheck.yml` in the repository root according to the
-[configuration file specification](https://codecheck.org.uk/spec/config/1.0/).
-Replace all `TODO`/`FIXME` placeholders (see [Validation](#validation-features)).
+[configuration file specification](https://codecheck.org.uk/spec/config/2.0/).
+Replace all `TODO`/`FIXME`/`NNN` placeholders (see [Validation](#validation-features)).
 
 ### 4. Reproduce the results and copy them to `.codecheck/outputs/`
 
@@ -237,13 +237,13 @@ The validation system performs the following checks on your `codecheck.yml` file
 - ✓ Year must be 4 digits
 - ✓ Number must be 3 digits
 - ✓ Detects placeholder certificates:
-  - `YYYY-001`, `0000-001`, `9999-001`
+  - `2026-NNN` (as in the template), `YYYY-001`, `0000-001`, `9999-001`
 
 #### 5. **Report DOI/URL Validation**
 
 - ✓ Must be a valid URL or DOI
 - ✓ Detects placeholder DOIs:
-  - `10.5281/zenodo.XXXXXX`
+  - `10.5281/zenodo.TODO` (as in the template), `10.5281/zenodo.XXXXXX`
   - URLs containing "placeholder" or "example"
 
 #### 6. **ORCID Validation**
@@ -302,7 +302,7 @@ The validation system performs the following checks on your `codecheck.yml` file
 - **ERROR** if no matching issue found
 - **WARNING** if issue is closed
 - **WARNING** if issue is unassigned
-- **INFO** if the certificate ID is still a placeholder (`YYYY-001`, ...): lists the register issues with the surname of
+- **INFO** if the certificate ID is still a placeholder (`2026-NNN`, ...): lists the register issues with the surname of
   the first author in the title and their certificate IDs (never written to `codecheck.yml`)
 - ✓ Can be disabled with `check_register=False`
 - ✓ Gracefully handles network errors (warns but doesn't fail)

@@ -20,6 +20,7 @@ PLACEHOLDER_PATTERNS = {
     'strings': ['FIXME', 'TODO', 'template', 'example', 'XXXXX', 'placeholder'],
     'certificate_patterns': [
         r'^YYYY-\d{3}$',      # Year placeholder
+        r'^(\d{4}|YYYY)-NNN$',  # Number placeholder (e.g. 2026-NNN)
         r'^0000-\d{3}$',      # Zero year
         r'^9999-\d{3}$',      # Invalid year
     ],
@@ -28,6 +29,7 @@ PLACEHOLDER_PATTERNS = {
         r'placeholder',
         r'example',
         r'10\.5281/zenodo\.XXXXXX',  # Zenodo placeholder
+        r'\bTODO\b',
     ]
 }
 

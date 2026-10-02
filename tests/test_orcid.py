@@ -124,7 +124,7 @@ def test_offline_template_placeholder_orcid_is_an_error():
     validator = CodecheckValidator(str(Path(__file__).parent.parent / 'codecheck.yml'))  # the example config
     validator.validate_yaml_syntax()
     validator.validate_orcids()
-    assert {i.message for i in validator.issues} >= {"Codechecker 1 ORCID '0123-4567-8910-1112' has a wrong check "
+    assert {i.message for i in validator.issues} >= {"Codechecker ORCID '0123-4567-8910-1112' has a wrong check "
                                                       "digit (last character), it is not a valid ORCID"}
 
 

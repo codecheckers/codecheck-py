@@ -51,7 +51,7 @@ repository-root/
 ### Core Components
 
 1. **`codecheck.py`**: `Codecheck` class. Reads `../codecheck.yml` (configurable) and exposes methods returning `IPython.display.Markdown` for the notebook:
-   - `title()`, `summary_table()`, `summary()`, `files()`, `citation()`, `about_codecheck()`, `acknowledge_sponsors()`
+   - `title()`, `summary_table()`, `summary()`, `files()`, `citation()`, `about_codecheck()`
    - `manifest_files()` (per-file sections by type: tables, text/JSON, images; checksums; never raises), `csv_files()` (CSV only), `git_info()` (commit SHA), `latex_figures()` (legacy PDF/EPS figure inclusion)
    - `session_info()` (via `session_info2`)
    - Validation: `validate(check_orcid_online=False, ...)`, `validation_report()`, and `Codecheck(validate=True, strict=...)`
@@ -67,11 +67,12 @@ repository-root/
 
 ### Configuration File (`codecheck.yml`)
 
-Follows the [CODECHECK configuration specification](https://codecheck.org.uk/spec/config/1.0/). Key fields:
-- `version`, `certificate` (`YYYY-NNN`), `report` (DOI/URL)
+Follows the [CODECHECK configuration specification](https://codecheck.org.uk/spec/config/2.0/). Key fields:
+- `version`, `certificate` (`YYYY-NNN`; `2026-NNN` is the template placeholder), `report` (DOI/URL; template placeholder `https://doi.org/10.5281/zenodo.TODO`)
 - `paper`: title, authors (name + ORCID), reference
 - `repository`, `codechecker` (list of name + ORCID), `check_time` (ISO), `summary`
 - `manifest`: list of `file` (path), optional `comment`
+- The template `codecheck.yml` starts with `%YAML 1.1` / `---` as in spec 2.0, has comments per field and placeholders flagged by the validation (invalid placeholder ORCIDs on purpose: check digit error)
 
 ## Development Commands
 

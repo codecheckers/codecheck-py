@@ -1,24 +1,38 @@
-version: https://codecheck.org.uk/spec/config/1.0/
-certificate: 2025-023
-report: https://doi.org/10.5281/zenodo.14900193
+%YAML 1.1
+---
+# CODECHECK configuration file, see https://codecheck.org.uk/spec/config/2.0/
+# Replace all FIXME/TODO/NNN placeholders before generating the certificate.
+version: https://codecheck.org.uk/spec/config/2.0/
+
+# --- Provided by the author(s) ---
+
+# Output files that are reproduced in the check, relative to this file;
+# the reproduced copies go into .codecheck/outputs/ with the same paths
+manifest:
+  - file: example_output.txt
+    comment: TODO describe the file, e.g. 'Figure 1 in the paper'
 
 paper:
   title: FIXME add title
   authors:
-    - name: TODO
+    # the corresponding author first; plain ORCID without https://orcid.org/
+    - name: FIXME add name
       ORCID: 0123-4567-8910-1112
+  # preferably a DOI; `update_config_from_doi()` in the notebook can fill in title and authors from it
   reference: https://doi.org/10.1234/example
 
-repository: https://github.com/example/repo
-check_time: "2023-11-15T14:30:00"
-summary: TODO add summary
+# --- Added by the codechecker(s) ---
 
 codechecker:
-  - name: FIXME
-    ORCID: 0123-4567-8910-1112
-  - name: SOMEONE ELSE
+  - name: FIXME add name
     ORCID: 0123-4567-8910-1112
 
-manifest:
-  - file: example_output.txt
-    comment: Example output file - replace with actual outputs
+# certificate ID from the issue in https://github.com/codecheckers/register/issues
+certificate: 2026-NNN
+# DOI of the certificate, e.g. reserved on Zenodo before publishing
+report: https://doi.org/10.5281/zenodo.TODO
+summary: TODO add summary
+# a URL or a list of URLs of the checked code and data
+repository: https://github.com/example/repo
+# when the check was completed (ISO 8601)
+check_time: "2026-01-01T12:00:00"

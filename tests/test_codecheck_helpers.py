@@ -53,7 +53,6 @@ def test_report_parts(workspace):
     assert check.summary().data == 'All   figures   reproduced.'
     assert 'Chris Checker (2023). CODECHECK Certificate 2023-001.' in check.citation().data
     assert 'independently reproduce' in check.about_codecheck().data
-    assert 'Mozilla' in check.acknowledge_sponsors().data
     assert check.session_info().data.startswith('```bash')
     files = check.files().data
     assert '`a.csv` | a table | 12' in files

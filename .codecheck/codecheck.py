@@ -672,7 +672,3 @@ Certificate | Issue | State | Assignees
                 parts.append(f"**Unchanged since commit `{commit}`**, were they reproduced? "
                              + ", ".join(f"`{f}`" for f in same if f in unchanged))
         return Markdown("\n\n".join(p for p in parts if p))
-    
-    def acknowledge_sponsors(self):
-        """The sponsoring acknowledgement."""
-        return Markdown("CODECHECK is financially supported by the Mozilla foundation.")
