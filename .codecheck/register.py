@@ -4,12 +4,11 @@ Access to the issues of the CODECHECK register (https://github.com/codecheckers/
 
 import os
 import re
-import unicodedata
 from typing import Dict, Iterable, Iterator, List, Optional
 
 import requests
 
-from validation_config import CERTIFICATE_ID, as_list
+from validation_config import CERTIFICATE_ID, as_list, normalise
 
 REGISTER_ISSUES_URL = "https://api.github.com/repos/codecheckers/register/issues"
 MAX_PAGES = 20  # 100 issues per page
@@ -50,12 +49,6 @@ def iter_register_issues(timeout: int = 10, max_pages: int = MAX_PAGES) -> Itera
 def fetch_register_issues(timeout: int = 10, max_pages: int = MAX_PAGES) -> List[Dict]:
     """All issues of the register, see `iter_register_issues()`."""
     return list(iter_register_issues(timeout, max_pages))
-
-
-def normalise(text: str) -> str:
-    """Lower case text without diacritics, for comparing names (`Nüst` matches `Nust`)."""
-    decomposed = unicodedata.normalize("NFKD", str(text))
-    return "".join(c for c in decomposed if not unicodedata.combining(c)).casefold()
 
 
 def surname(name: str) -> str:

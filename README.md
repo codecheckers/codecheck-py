@@ -191,7 +191,8 @@ check = Codecheck()
 passed, issues = check.validate(
     check_manifest=True,
     check_register=True,  # Check GitHub register (default: True)
-    strict=False
+    strict=False,
+    check_orcid_online=False  # Check ORCIDs at orcid.org (default: False)
 )
 check.validation_report()
 ```
@@ -245,12 +246,21 @@ The validation system performs the following checks on your `codecheck.yml` file
   - `10.5281/zenodo.XXXXXX`
   - URLs containing "placeholder" or "example"
 
-#### 6. **ORCID Format Validation**
+#### 6. **ORCID Validation**
 
 - ✓ Format: `0000-0000-0000-0000` (or ending in X)
+- ✓ Check digit (last character, ISO 7064 mod 11-2): catches typos and placeholders such as `0123-4567-8910-1112`
 - ✓ Validates for all authors
 - ✓ Validates for codechecker(s)
-- ✓ Detects invalid ORCID patterns
+- ✓ Online (opt-in, `check_orcid_online=True`): one request per ORCID to the public API at
+  [pub.orcid.org](https://pub.orcid.org), no token needed
+  - **ERROR** if the ORCID does not exist or is locked/deactivated
+  - **WARNING** if the name in `codecheck.yml` does not match the ORCID record (case, diacritics, punctuation and
+    name order are ignored; the family name and a given name or its initial must be in the name, or it is the published
+    name)
+  - **INFO** if the ORCID record has no public name
+  - Network errors only warn, the remaining ORCIDs are then skipped
+- ✓ Also available as `Codecheck(validate=True, check_orcid_online=True)`
 
 #### 7. **Date/Time Format Validation**
 

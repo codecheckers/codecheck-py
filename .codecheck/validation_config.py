@@ -1,8 +1,9 @@
 """
-Configuration constants for codecheck.yml validation
+Configuration constants for codecheck.yml validation, and small helpers shared by the modules
 """
 
 import re
+import unicodedata
 
 # Directories (relative to the repository root) that can contain the CODECHECK files and the `outputs/` directory,
 # in order of preference: `.codecheck/` (default) or `codecheck/`
@@ -52,3 +53,14 @@ def as_list(value):
 def is_placeholder_certificate(cert) -> bool:
     """Whether a certificate ID is a placeholder such as `YYYY-001` (no ID assigned yet)."""
     return isinstance(cert, str) and any(re.match(p, cert) for p in PLACEHOLDER_PATTERNS['certificate_patterns'])
+
+
+# letters that have no decomposition into a base letter and a diacritic
+LETTERS = str.maketrans({"ł": "l", "Ł": "L", "ø": "o", "Ø": "O", "đ": "d", "Đ": "D", "ß": "ss", "æ": "ae", "Æ": "AE",
+                         "œ": "oe", "Œ": "OE", "ı": "i"})
+
+
+def normalise(text) -> str:
+    """Lower case text without diacritics, for comparing names (`Nüst` matches `Nust`, `Łukasz` matches `Lukasz`)."""
+    decomposed = unicodedata.normalize("NFKD", str(text).translate(LETTERS))
+    return "".join(c for c in decomposed if not unicodedata.combining(c)).casefold()

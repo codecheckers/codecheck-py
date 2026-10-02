@@ -74,7 +74,7 @@ class Codecheck:
     """
 
     def __init__(self, manifest_file=op.join("..", "codecheck.yml"),
-                 validate=False, strict=False):
+                 validate=False, strict=False, check_orcid_online=False):
         """
         Create new `Codecheck` object with optional validation.
 
@@ -88,6 +88,8 @@ class Codecheck:
         strict : bool, optional
             If True, raises error on validation failure (when validate=True).
             If False, only warnings are issued. Defaults to False.
+        check_orcid_online : bool, optional
+            Whether the validation (when validate=True) checks the ORCIDs at orcid.org. Defaults to False.
         """
         self.manifest_file = manifest_file
         self.validator = CodecheckValidator(manifest_file)
@@ -97,6 +99,7 @@ class Codecheck:
         if validate:
             passed, issues = self.validator.validate_all(
                 check_manifest=False,  # Don't check files until explicitly requested
+                check_orcid_online=check_orcid_online,
                 strict=strict
             )
             if not passed and strict:
@@ -506,7 +509,7 @@ This certificate confirms that the codechecker could independently reproduce the
             )
         return Markdown("\n".join(full_text))
 
-    def validate(self, check_manifest=True, check_register=True, strict=False):
+    def validate(self, check_manifest=True, check_register=True, strict=False, check_orcid_online=False):
         """
         Run validation checks on the codecheck.yml file.
 
@@ -518,6 +521,8 @@ This certificate confirms that the codechecker could independently reproduce the
             Whether to check for GitHub register issue. Defaults to True.
         strict : bool, optional
             If True, warnings are treated as failures. Defaults to False.
+        check_orcid_online : bool, optional
+            Whether to check that the ORCIDs exist and match the names at orcid.org. Defaults to False.
 
         Returns
         -------
@@ -527,7 +532,8 @@ This certificate confirms that the codechecker could independently reproduce the
         return self.validator.validate_all(
             check_manifest=check_manifest,
             check_register=check_register,
-            strict=strict
+            strict=strict,
+            check_orcid_online=check_orcid_online
         )
 
     def find_certificate_id(self, name=None, timeout=10):

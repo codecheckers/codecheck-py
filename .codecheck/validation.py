@@ -11,6 +11,7 @@ from datetime import datetime
 import requests
 
 from manifest import existing_file, find_outputs_dir, manifest_file_paths, output_path
+import orcid_records
 from register import certificate_candidates, describe, find_issue, first_author_surname, iter_register_issues
 from validation_config import (
     as_list,
@@ -278,9 +279,30 @@ class CodecheckValidator:
 
         return True
 
+    def _orcid_entries(self) -> List[Tuple[str, str, Any, Any]]:
+        """
+        (field, label, ORCID, name) of the codecheckers and paper authors that have an ORCID; field names as in the
+        structure checks. The ORCID is the value from the YAML (not always text).
+        """
+        entries = []
+        codechecker = as_list(self.config.get('codechecker', {}))
+        if isinstance(codechecker, list):
+            several = len(codechecker) > 1
+            for i, person in enumerate(codechecker):
+                if isinstance(person, dict) and person.get('ORCID'):
+                    field, label = (f'codechecker[{i}]', f'Codechecker {i+1}') if several else ('codechecker', 'Codechecker')
+                    entries.append((f'{field}.ORCID', label, person['ORCID'], person.get('name')))
+        paper = self.config.get('paper', {})
+        authors = paper.get('authors', []) if isinstance(paper, dict) else []
+        if isinstance(authors, list):
+            for i, author in enumerate(authors):
+                if isinstance(author, dict) and author.get('ORCID'):
+                    entries.append((f'paper.authors[{i}].ORCID', f'Author {i+1}', author['ORCID'], author.get('name')))
+        return entries
+
     def validate_orcids(self) -> bool:
         """
-        Validate ORCID format for authors and codechecker.
+        Validate ORCID format and check digit for authors and codechecker.
 
         Returns
         -------
@@ -288,39 +310,75 @@ class CodecheckValidator:
             True if all ORCIDs are valid or missing, False if invalid
         """
         has_errors = False
-
-        # Validate codechecker ORCID(s)
-        codechecker = as_list(self.config.get('codechecker', {}))
-        if isinstance(codechecker, list):
-            for person in codechecker:
-                orcid = person.get('ORCID', '') if isinstance(person, dict) else ''
-                if orcid and not re.match(ORCID_FORMAT, str(orcid)):
-                    self.issues.append(ValidationIssue(
-                        level='error',
-                        field='codechecker.ORCID',
-                        message=f"Codechecker ORCID '{orcid}' has invalid format",
-                        suggestion="Use format: 0000-0000-0000-0000"
-                    ))
-                    has_errors = True
-
-        # Validate author ORCIDs
-        paper = self.config.get('paper', {})
-        if isinstance(paper, dict):
-            authors = paper.get('authors', [])
-            if isinstance(authors, list):
-                for i, author in enumerate(authors):
-                    if isinstance(author, dict):
-                        orcid = author.get('ORCID', '')
-                        if orcid and not re.match(ORCID_FORMAT, orcid):
-                            self.issues.append(ValidationIssue(
-                                level='error',
-                                field=f'paper.authors[{i}].ORCID',
-                                message=f"Author {i+1} ORCID '{orcid}' has invalid format",
-                                suggestion="Use format: 0000-0000-0000-0000"
-                            ))
-                            has_errors = True
-
+        for field, label, orcid, _ in self._orcid_entries():
+            if not isinstance(orcid, str):  # e.g. digits without dashes are read as a number
+                message = f"{label} ORCID {orcid!r} is not text"
+                suggestion = "Write the ORCID with dashes, in quotes: '0000-0000-0000-0000'"
+            elif not re.match(ORCID_FORMAT, orcid):
+                message, suggestion = f"{label} ORCID '{orcid}' has invalid format", "Use format: 0000-0000-0000-0000"
+            elif not orcid_records.check_digit_ok(orcid):
+                message = f"{label} ORCID '{orcid}' has a wrong check digit (last character), it is not a valid ORCID"
+                suggestion = "Copy the ORCID from https://orcid.org, a typo or a placeholder changes the check digit"
+            else:
+                continue
+            self.issues.append(ValidationIssue(level='error', field=field, message=message, suggestion=suggestion))
+            has_errors = True
         return not has_errors
+
+    def validate_orcids_online(self, timeout: int = 10) -> bool:
+        """
+        Validate that the ORCIDs exist and that the names match the public ORCID records (https://pub.orcid.org).
+
+        An error is added for ORCIDs that do not exist or are locked/deactivated, a warning for names that do not match,
+        an info for records without public name. ORCIDs with invalid format or check digit are skipped (see
+        `validate_orcids()`), every ORCID is requested once. A network error only warns, and the remaining ORCIDs are
+        not requested (no timeout per ORCID when offline).
+
+        Returns
+        -------
+        bool
+            False if an ORCID does not exist or is locked/deactivated, True otherwise
+        """
+        results = {}
+        all_exist = True
+        for field, label, orcid, name in self._orcid_entries():
+            if not orcid_records.check_digit_ok(orcid):
+                continue
+            if orcid not in results:
+                results[orcid] = orcid_records.lookup(orcid, timeout=timeout)
+            status, names, error = results[orcid]
+            if status == orcid_records.UNAVAILABLE:
+                self.issues.append(ValidationIssue(
+                    level='warning',
+                    field=field,
+                    message=f"Could not check the ORCIDs at orcid.org ({orcid}: {error}), the remaining ORCIDs were skipped",
+                    suggestion="Check your internet connection and try again"
+                ))
+                break
+            if status in (orcid_records.NOT_FOUND, orcid_records.DEACTIVATED):
+                self.issues.append(ValidationIssue(
+                    level='error',
+                    field=field,
+                    message=f"{label} ORCID {orcid} does not exist" if status == orcid_records.NOT_FOUND
+                            else f"{label} ORCID {orcid} is locked or deactivated",
+                    suggestion="Copy the ORCID from https://orcid.org"
+                ))
+                all_exist = False
+            elif status == orcid_records.NO_PUBLIC_NAME:
+                self.issues.append(ValidationIssue(
+                    level='info',
+                    field=field,
+                    message=f"{label} ORCID {orcid} has no public name, the name could not be compared",
+                ))
+            elif isinstance(name, str) and not orcid_records.name_matches(name, names):
+                self.issues.append(ValidationIssue(
+                    level='warning',
+                    field=field,
+                    message=f"{label} name '{name}' does not match the name "
+                            f"'{orcid_records.display_name(names)}' of ORCID {orcid}",
+                    suggestion=f"Check the ORCID and the name: https://orcid.org/{orcid}"
+                ))
+        return all_exist
 
     def validate_check_time(self) -> bool:
         """
@@ -728,7 +786,8 @@ class CodecheckValidator:
     def validate_all(self,
                      check_manifest: bool = True,
                      check_register: bool = True,
-                     strict: bool = False) -> Tuple[bool, List[ValidationIssue]]:
+                     strict: bool = False,
+                     check_orcid_online: bool = False) -> Tuple[bool, List[ValidationIssue]]:
         """
         Run all validation checks.
 
@@ -740,6 +799,8 @@ class CodecheckValidator:
             Whether to check for GitHub register issue. Defaults to True.
         strict : bool, optional
             If True, warnings are treated as failures. Defaults to False.
+        check_orcid_online : bool, optional
+            Whether to check that the ORCIDs exist and match the names at orcid.org. Defaults to False.
 
         Returns
         -------
@@ -773,6 +834,10 @@ class CodecheckValidator:
         # 6. Register issue check
         if check_register:
             self.validate_register_issue()
+
+        # 7. ORCID records
+        if check_orcid_online:
+            self.validate_orcids_online()
 
         # Determine pass/fail
         has_errors = any(i.level == 'error' for i in self.issues)

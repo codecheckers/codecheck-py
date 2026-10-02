@@ -8,8 +8,8 @@ import requests
 import yaml
 
 from codecheck import Codecheck
-from register import (certificate_candidates, fetch_register_issues, find_issue, first_author_surname, normalise,
-                      surname)
+from register import certificate_candidates, fetch_register_issues, find_issue, first_author_surname, surname
+from validation_config import normalise
 from validation import CodecheckValidator
 
 

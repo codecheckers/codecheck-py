@@ -77,7 +77,7 @@ def test_codechecker_and_author_orcids_are_checked(tmp_path):
         'paper': {'authors': [{'name': 'C', 'ORCID': '1234'}]},
     })
     assert validator.validate_orcids() is False
-    assert ('error', 'codechecker.ORCID') in issues(validator)
+    assert ('error', 'codechecker[0].ORCID') in issues(validator)
     assert ('error', 'paper.authors[0].ORCID') in issues(validator)
 
 
