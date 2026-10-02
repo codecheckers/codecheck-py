@@ -108,7 +108,7 @@ Tests cover validation, manifest handling, the GitHub register check (mocked), i
 - `title()` references `codecheck_logo.svg` in the working directory.
 
 ### CSV Handling
-- `csv_files(max_rows=15, max_cols=50, **kwds)` reads each manifest `.csv` with `pd.read_csv(..., nrows=max_rows, **kwds)`, truncates columns afterwards, and emits `describe()` as a Markdown table. Passing `nrows` in `**kwds` collides with the explicit `nrows` argument. Known problem with large CSVs: see issue #16.
+- `csv_files(max_rows=15, max_cols=50, describe=True, head=0, **kwds)` shows per CSV file a table with size, mtime, SHA-256, line and column counts (`_file_info()` streams the file in chunks), then optionally the first `head` rows and `describe()` statistics. Only the first `max_rows` rows and `max_cols` columns are parsed (`nrows`/`usecols`), so output size does not depend on the CSV size. `nrows`/`usecols` in `**kwds` take precedence. Background: issue #16 (40 MB Markdown made Typst run out of memory).
 
 ### ORCID Integration
 - `name_orcid()` currently formats as `Name (ORCID: 0000-...)` (plain text, not a link).

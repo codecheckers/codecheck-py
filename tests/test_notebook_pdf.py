@@ -39,20 +39,8 @@ def pdf_workspace():
             if src.exists():
                 shutil.copy2(src, codecheck_dir / module)
 
-        # Copy or create logo
-        logo_src = source_dir / 'codecheck_logo.png'
-        if logo_src.exists():
-            shutil.copy2(logo_src, codecheck_dir / 'codecheck_logo.png')
-        else:
-            # Create minimal valid PNG (1x1 pixel) for testing
-            import struct
-            png_sig = b'\x89PNG\r\n\x1a\n'
-            ihdr = struct.pack('>IIBBBBB', 1, 1, 8, 6, 0, 0, 0)
-            ihdr_chunk = struct.pack('>I', 13) + b'IHDR' + ihdr + struct.pack('>I', 0x907753d5)
-            idat_data = b'\x78\x9c\x62\x00\x01\x00\x00\x05\x00\x01'
-            idat_chunk = struct.pack('>I', len(idat_data)) + b'IDAT' + idat_data + struct.pack('>I', 0x0d0a2db4)
-            iend_chunk = struct.pack('>I', 0) + b'IEND' + struct.pack('>I', 0xae426082)
-            (codecheck_dir / 'codecheck_logo.png').write_bytes(png_sig + ihdr_chunk + idat_chunk + iend_chunk)
+        # Copy logo
+        shutil.copy2(source_dir / 'codecheck_logo.svg', codecheck_dir / 'codecheck_logo.svg')
 
         # Copy the template codecheck.yml and customize for testing
         config_template = project_root / 'codecheck.yml'

@@ -64,3 +64,31 @@ def test_nrows_in_kwds_does_not_raise(workspace):
     """Passing nrows via **kwds (as users did in #16) used to raise a TypeError."""
     md = Codecheck().csv_files(nrows=3).data
     assert "long.csv" in md
+
+
+def test_file_info_table(workspace):
+    import hashlib
+    md = Codecheck().csv_files().data
+    small = md.split("### `small.csv`")[1]
+    assert hashlib.sha256((workspace / 'outputs' / 'small.csv').read_bytes()).hexdigest() in small
+    assert "Lines | 3" in small
+    assert "Columns | 2" in small
+    assert "Size (b) | 12" in small
+
+
+def test_wide_csv_reports_total_columns(workspace):
+    wide = Codecheck().csv_files(max_cols=10).data.split("### `wide.csv`")[1].split("### `long.csv`")[0]
+    assert "Columns | 2,000" in wide
+    assert "Lines | 21" in wide
+
+
+def test_describe_can_be_disabled_and_head_enabled(workspace):
+    md = Codecheck().csv_files(describe=False, head=2, max_cols=3).data
+    assert "Column summary statistics" not in md
+    assert "First 2 rows" in md
+    assert len(md) < 6000
+
+
+def test_info_without_header_and_with_usecols(workspace):
+    md = Codecheck().csv_files(header=None, usecols=[0, 1]).data
+    assert "### `small.csv`" in md

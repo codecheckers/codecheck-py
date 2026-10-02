@@ -2,6 +2,8 @@
 Helper module to prepare a CODECHECK report
 https://codecheck.org.uk
 """
+import hashlib
+import os
 import os.path as op
 import pandas as pd
 import session_info2 as si
@@ -194,17 +196,45 @@ This certificate confirms that the codechecker could independently reproduce the
 """
 )
 
-    def csv_files(self, max_rows=15, max_cols=50, **kwds):
+    @staticmethod
+    def _file_info(path):
+        """Size, modification time, SHA-256 checksum and number of lines of a file (read in chunks)."""
+        sha256 = hashlib.sha256()
+        lines = 0
+        last = b""
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                sha256.update(chunk)
+                lines += chunk.count(b"\n")
+                last = chunk
+        if last and not last.endswith(b"\n"):
+            lines += 1  # last line without trailing newline
+        stat = os.stat(path)
+        return {
+            "size": stat.st_size,
+            "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(timespec="seconds"),
+            "sha256": sha256.hexdigest(),
+            "lines": lines,
+        }
+
+    def csv_files(self, max_rows=15, max_cols=50, describe=True, head=0, **kwds):
         """
-        Markdown summary of all `.csv` files in the manifest. Prints the output of Panda's `describe` function (number of entries, mean, quantiles, etc.)
-        for each column.
-        
+        Markdown summary of all `.csv` files in the manifest. For each file, a small table with the file size,
+        modification time, SHA-256 checksum, number of lines and number of columns is shown. Optionally followed by the
+        first rows and Panda's `describe` output (number of entries, mean, quantiles, etc.) for each column.
+
+        The size of the output is bounded by `max_rows` and `max_cols`, independent of the size of the CSV files.
+
         Parameters
         ----------
         max_rows: int
-            Limit of rows to display. Defaults to `15`.
+            Limit of rows to read for the statistics. Defaults to `15`.
         max_cols: int
             Limit of columns to display. Defaults to `50`.
+        describe: bool
+            Whether to show summary statistics (`describe`) of the first `max_rows` rows. Defaults to `True`.
+        head: int
+            Number of first rows to show as a table (at most `max_rows`). Defaults to `0` (not shown).
         **kwds
             Additional arguments (e.g. index_col=False) that will be handed over to Panda's `read_csv` function.
             Arguments given here (e.g. `nrows`, `usecols`) take precedence over `max_rows` and `max_cols`.
@@ -215,19 +245,41 @@ This certificate confirms that the codechecker could independently reproduce the
             if not fname.endswith(".csv"):
                 continue
             comment = entry.get("comment", None)
+            path = op.join("outputs", fname)
+            info = self._file_info(path)
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", pd.errors.DtypeWarning)
-                path = op.join("outputs", fname)
                 read_kwds = {"nrows": max_rows, **kwds}
+                n_cols = None
                 if "usecols" not in read_kwds:
                     # Only parse the first `max_cols` columns, wide files are otherwise very slow
                     n_cols = pd.read_csv(path, **{**read_kwds, "nrows": 1}).shape[1]
                     read_kwds["usecols"] = list(range(min(n_cols, max_cols)))
                 df = pd.read_csv(path, **read_kwds).iloc[:, :max_cols]
+
+            info_rows = [
+                f"Size (b) | {info['size']:,}",
+                f"Modified | {info['modified']}",
+                f"SHA-256 | `{info['sha256']}`",
+                f"Lines | {info['lines']:,}",
+                f"Columns | {n_cols if n_cols is not None else len(df.columns):,}",
+            ]
             markdown = f"""### `{fname}`
 {('Author comment: *' + comment + '*') if comment else ' '}
 
-**Column summary statistics:**
+Item | Value
+:--- | :----
+{chr(10).join(info_rows)}
+"""
+            if head:
+                markdown += f"""
+**First {min(head, len(df))} rows** (up to {max_cols} columns):
+
+{df.head(head).to_markdown(index=False)}
+"""
+            if describe:
+                markdown += f"""
+**Column summary statistics** (first {len(df)} rows, up to {max_cols} columns):
 
 {df.describe().transpose().to_markdown(floatfmt=('.0f', '.0f', '.4f', '.4f', '.4f', '.4f', '.4f', '.4f', '.4f'))}
 """

@@ -81,15 +81,17 @@ The script runs the notebook (hiding the code cells) into `codecheck.md` with
 (set `MAX_MD_BYTES` to change that limit), which usually means that very large
 output (e.g. big tables) ended up in the report.
 
-### Large CSV files
+### CSV files
 
-`check.csv_files()` only summarises the first `max_rows` rows (default 15) and the
-first `max_cols` columns (default 50) of each CSV file in the manifest, so even
-huge files stay small in the report. Additional arguments are passed to
-`pandas.read_csv()`:
+For each CSV file in the manifest, `check.csv_files()` shows the file size, modification
+time, SHA-256 checksum, number of lines and number of columns, followed by summary
+statistics (`describe`) of the first `max_rows` rows (default 15) and the first
+`max_cols` columns (default 50). The report therefore stays small even for huge files.
+Additional arguments are passed to `pandas.read_csv()`:
 
 ```python
 check.csv_files(max_rows=50, max_cols=20, index_col=False, header=None)
+check.csv_files(describe=False, head=5)   # show the first 5 rows instead of statistics
 ```
 
 ### Assumptions of this template
