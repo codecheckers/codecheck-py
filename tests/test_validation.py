@@ -268,3 +268,27 @@ def test_report_doi_placeholder(fixtures_dir):
     report_issues = [i for i in validator.issues if i.field == 'report']
     assert len(report_issues) > 0
     assert any('placeholder' in i.message.lower() for i in report_issues)
+
+
+def test_codechecker_as_list_is_valid(tmp_path):
+    """The specification allows several codecheckers as a list (as in the template's codecheck.yml)."""
+    config = tmp_path / 'codecheck.yml'
+    config.write_text(
+        "codechecker:\n"
+        "  - name: A\n    ORCID: 0000-0002-0024-5046\n"
+        "  - name: B\n    ORCID: 0000-0001-8607-8025\n"
+    )
+    validator = CodecheckValidator(str(config))
+    validator.validate_yaml_syntax()
+    assert validator.validate_codechecker_structure() is True
+    validator.validate_orcids()
+    assert not [i for i in validator.issues if i.level == 'error']
+
+
+def test_codechecker_list_entry_without_name_is_error(tmp_path):
+    config = tmp_path / 'codecheck.yml'
+    config.write_text("codechecker:\n  - name: A\n  - ORCID: 0000-0002-0024-5046\n")
+    validator = CodecheckValidator(str(config))
+    validator.validate_yaml_syntax()
+    assert validator.validate_codechecker_structure() is False
+    assert any(i.field == 'codechecker[1].name' for i in validator.issues)

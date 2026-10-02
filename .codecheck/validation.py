@@ -297,18 +297,21 @@ class CodecheckValidator:
         """
         has_errors = False
 
-        # Validate codechecker ORCID
+        # Validate codechecker ORCID(s)
         codechecker = self.config.get('codechecker', {})
         if isinstance(codechecker, dict):
-            orcid = codechecker.get('ORCID', '')
-            if orcid and not re.match(ORCID_FORMAT, orcid):
-                self.issues.append(ValidationIssue(
-                    level='error',
-                    field='codechecker.ORCID',
-                    message=f"Codechecker ORCID '{orcid}' has invalid format",
-                    suggestion="Use format: 0000-0000-0000-0000"
-                ))
-                has_errors = True
+            codechecker = [codechecker]
+        if isinstance(codechecker, list):
+            for person in codechecker:
+                orcid = person.get('ORCID', '') if isinstance(person, dict) else ''
+                if orcid and not re.match(ORCID_FORMAT, str(orcid)):
+                    self.issues.append(ValidationIssue(
+                        level='error',
+                        field='codechecker.ORCID',
+                        message=f"Codechecker ORCID '{orcid}' has invalid format",
+                        suggestion="Use format: 0000-0000-0000-0000"
+                    ))
+                    has_errors = True
 
         # Validate author ORCIDs
         paper = self.config.get('paper', {})
@@ -452,33 +455,50 @@ class CodecheckValidator:
             # Already caught by mandatory field check
             return False
 
-        if not isinstance(codechecker, dict):
+        # The specification allows a single codechecker or a list of codecheckers
+        if isinstance(codechecker, dict):
+            codechecker = [codechecker]
+        if not isinstance(codechecker, list):
             self.issues.append(ValidationIssue(
                 level='error',
                 field='codechecker',
-                message=f"Codechecker must be a dictionary, got {type(codechecker).__name__}",
-                suggestion="Structure codechecker as: {name: '...', ORCID: '...'}"
+                message=f"Codechecker must be a dictionary or a list of dictionaries, got {type(codechecker).__name__}",
+                suggestion="Structure codechecker as: {name: '...', ORCID: '...'} or a list of these"
             ))
             return False
 
-        if 'name' not in codechecker or not codechecker['name']:
-            self.issues.append(ValidationIssue(
-                level='error',
-                field='codechecker.name',
-                message="Codechecker name is missing",
-                suggestion="Add name field for codechecker"
-            ))
-            return False
+        valid = True
+        for i, person in enumerate(codechecker):
+            field = f'codechecker[{i}]' if len(codechecker) > 1 else 'codechecker'
+            if not isinstance(person, dict):
+                self.issues.append(ValidationIssue(
+                    level='error',
+                    field=field,
+                    message=f"Codechecker must be a dictionary, got {type(person).__name__}",
+                    suggestion="Structure codechecker as: {name: '...', ORCID: '...'}"
+                ))
+                valid = False
+                continue
 
-        if 'ORCID' not in codechecker or not codechecker['ORCID']:
-            self.issues.append(ValidationIssue(
-                level='warning',
-                field='codechecker.ORCID',
-                message="Codechecker ORCID is missing",
-                suggestion="Add ORCID field for codechecker"
-            ))
+            if 'name' not in person or not person['name']:
+                self.issues.append(ValidationIssue(
+                    level='error',
+                    field=f'{field}.name',
+                    message="Codechecker name is missing",
+                    suggestion="Add name field for codechecker"
+                ))
+                valid = False
+                continue
 
-        return True
+            if 'ORCID' not in person or not person['ORCID']:
+                self.issues.append(ValidationIssue(
+                    level='warning',
+                    field=f'{field}.ORCID',
+                    message="Codechecker ORCID is missing",
+                    suggestion="Add ORCID field for codechecker"
+                ))
+
+        return valid
 
     def validate_manifest_structure(self) -> bool:
         """

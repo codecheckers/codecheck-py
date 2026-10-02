@@ -16,4 +16,5 @@ dependencies:
   - requests
   - session-info2
   - ipywidgets
+  - typst  # CLI used by notebook_to_pdf.sh to build the PDF
  

@@ -22,12 +22,18 @@ def name_orcid(entry):
     else:
         return entry['name']
 
+def as_list(entries):
+    """A single person (dict) is allowed in `codecheck.yml` in place of a list of people."""
+    return [entries] if isinstance(entries, dict) else entries
+
 def multiple_name_orcid(entries):
     """Helper function for multiple people to return their Name + ORCID"""
+    entries = as_list(entries)
     return f"{', '.join([name_orcid(a) for a in entries])}"
 
 def multiple_name(entries):
-    """Helper function for multiple people to return their Name + ORCID"""
+    """Helper function for multiple people to return their names"""
+    entries = as_list(entries)
     return f"{', '.join([a['name'] for a in entries])}"
 
 def url_link(url):
