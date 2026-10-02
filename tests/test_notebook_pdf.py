@@ -1,6 +1,7 @@
 """
 Tests for notebook PDF rendering
 """
+import os
 import pytest
 from pathlib import Path
 import tempfile
@@ -210,6 +211,29 @@ def test_notebook_pdf_generation_without_latex(pdf_workspace):
         pytest.skip("HTML generation timed out")
     except Exception as e:
         pytest.skip(f"HTML generation failed: {e}")
+
+
+@pytest.mark.skipif(shutil.which('jupyter') is None, reason="jupyter not installed")
+def test_notebook_to_pdf_copies_outputs_and_hides_copy_report(pdf_workspace, tmp_path):
+    """notebook_to_pdf.sh refreshes outputs/ from the repository, and the copy report is not in the certificate."""
+    codecheck_dir = pdf_workspace / '.codecheck'
+    shutil.copy2(Path(__file__).parent.parent / '.codecheck' / 'notebook_to_pdf.sh', codecheck_dir)
+    (pdf_workspace / 'data').mkdir()
+    (pdf_workspace / 'data' / 'results.csv').write_text('col1,col2\n5,6\n')  # newer than the copy in outputs/
+    bin_dir = tmp_path / 'bin'  # stand-in for typst: only the Markdown step is tested here
+    bin_dir.mkdir()
+    (bin_dir / 'typst').write_text('#!/bin/sh\nexit 0\n')
+    (bin_dir / 'typst').chmod(0o755)
+    env = {**os.environ, 'PATH': f"{bin_dir}{os.pathsep}{os.environ['PATH']}"}
+
+    result = subprocess.run(['sh', 'notebook_to_pdf.sh'], cwd=codecheck_dir, env=env,
+                            capture_output=True, text=True, timeout=180)
+
+    assert result.returncode == 0, result.stderr
+    assert (codecheck_dir / 'outputs' / 'data' / 'results.csv').read_text() == 'col1,col2\n5,6\n'
+    markdown = (codecheck_dir / 'codecheck.md').read_text()
+    assert '## Manifest files' in markdown and 'Copied' not in markdown
+    assert not (codecheck_dir / 'codecheck.executed.ipynb').exists()
 
 
 def test_notebook_validation_integration(pdf_workspace):

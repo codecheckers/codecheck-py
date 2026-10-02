@@ -107,6 +107,16 @@ def test_copy_manifest_files_notes_files_unchanged_in_git(workspace):
     assert 'Copied 1 file(s)' in report and 'Unchanged since commit' not in report
 
 
+@requires_git
+def test_copy_manifest_files_with_numeric_manifest_path(workspace):
+    """A manifest path that YAML reads as a number (`file: 2020`) works with the git check."""
+    (workspace / 'codecheck.yml').write_text(yaml.dump({**VALID, 'manifest': [{'file': 2020}]}))
+    (workspace / '2020').write_text('result\n')
+    git_commit_all(workspace, '2020')
+    report = Codecheck().copy_manifest_files().data
+    assert 'Copied 1 file(s)' in report and 'Unchanged since commit' in report and '`2020`' in report
+
+
 def test_methods_without_manifest(tmp_path, monkeypatch):
     (tmp_path / 'codecheck.yml').write_text(yaml.dump({'certificate': '2023-001'}))
     monkeypatch.chdir(tmp_path)
