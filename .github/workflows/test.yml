@@ -24,7 +24,7 @@ jobs:
     - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pytest pytest-cov pyyaml pandas requests jupyter nbconvert session-info2 tabulate
+        pip install pytest pytest-cov pyyaml pandas requests jupyter nbconvert session-info2 tabulate openpyxl pillow
 
     - name: Run tests with pytest
       run: |

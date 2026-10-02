@@ -9,6 +9,8 @@ dependencies:
   - jupyterlab
   - matplotlib>=3.4
   - pandas>=1.3
+  - openpyxl  # Excel files in the manifest
+  - pillow  # image dimensions in the manifest summary
   - tabulate
   - pyyaml
   - pytest>=7.0

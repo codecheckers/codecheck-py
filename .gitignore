@@ -3,3 +3,5 @@ outputs/*
 .codecheck/outputs/*
 *.pdf
 .codecheck/*.md
+.coverage
+.pytest_cache/
