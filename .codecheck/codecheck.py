@@ -18,6 +18,7 @@ from IPython.display import Markdown
 from datetime import datetime
 from pathlib import Path
 
+import doi_metadata
 from manifest import ManifestProcessor, existing_file, find_outputs_dir, manifest_file_paths, output_path
 from register import certificate_candidates, fetch_register_issues, first_author_surname, markdown_row
 from validation import CodecheckValidator
@@ -535,6 +536,79 @@ This certificate confirms that the codechecker could independently reproduce the
             strict=strict,
             check_orcid_online=check_orcid_online
         )
+
+    def _paper_doi(self):
+        """DOI from `paper.reference` in `codecheck.yml` (None if missing or a placeholder)."""
+        paper = self.conf.get("paper") if isinstance(self.conf.get("paper"), dict) else {}
+        reference = paper.get("reference")
+        return None if self.validator.is_placeholder(reference) else doi_metadata.doi_from(reference)
+
+    def fetch_paper_metadata(self, doi=None, mailto=None, timeout=10):
+        """
+        Metadata of the checked paper from Crossref and OpenAlex: dict with `title`, `authors` (list of `name` and
+        `ORCID` if known), `reference` (DOI URL), `date` (publication date) and `source`.
+
+        `doi` defaults to the DOI in `paper.reference`. `mailto` (or the `CODECHECK_MAILTO` environment variable) is
+        sent to the polite pools of the APIs. Raises `ValueError` without DOI, `doi_metadata.DoiNotFound` for unknown
+        DOIs and `requests.exceptions.RequestException` on network errors.
+        """
+        doi = doi or self._paper_doi()
+        if not doi:
+            raise ValueError("No DOI: pass doi=... or set paper.reference in codecheck.yml to the DOI of the paper")
+        return doi_metadata.fetch_paper_metadata(doi, mailto=mailto, timeout=timeout)
+
+    def update_config_from_doi(self, doi=None, apply=False, overwrite=False, mailto=None, timeout=10):
+        """
+        Fill `paper.title`, `paper.authors` and `paper.reference` in `codecheck.yml` from the DOI of the paper (see
+        `fetch_paper_metadata()`). Only missing values and placeholders (FIXME, TODO, example, invalid ORCIDs) are
+        replaced, all values with `overwrite=True`.
+
+        A dry run by default: returns a Markdown table of the changes. `apply=True` writes them to `codecheck.yml`,
+        keeping comments and formatting (needs `ruamel.yaml`). Problems (no DOI, offline, unknown DOI) are reported in
+        the output.
+        """
+        try:
+            metadata = self.fetch_paper_metadata(doi, mailto=mailto, timeout=timeout)
+        except Exception as e:  # no DOI, network, unknown DOI: never stop the notebook
+            return Markdown(f"*Could not get the metadata of the paper: {type(e).__name__}: {e}*")
+
+        source = f"{metadata['source']} ({metadata['reference']}, published {metadata['date'] or 'unknown'})"
+        plan = doi_metadata.plan_paper_updates(self.conf, metadata, overwrite)
+        if not plan:
+            return Markdown(f"`codecheck.yml` already matches the metadata from {source}.")
+        updates = {key: new for key, _, new, replace in plan if replace}
+        rows = [f"paper.{key} | {self._cell(current)} | {self._cell(new)} | "
+                f"{'update' if replace else 'kept (overwrite=True to replace)'}" for key, current, new, replace in plan]
+        table = f"""Metadata from {source}:
+
+Field | In codecheck.yml | From the DOI | Action
+:--- | :--- | :--- | :---
+""" + "\n".join(rows)
+
+        if not updates:
+            note = ""
+        elif not apply:
+            note = "*Dry run: call with `apply=True` to write the updates to `codecheck.yml`.*"
+        else:
+            try:
+                self.conf = doi_metadata.write_paper_fields(self.manifest_file, updates)
+                note = f"*Updated `{self.manifest_file}`.*"
+            except ImportError:
+                note = ("*Not written: `ruamel.yaml` is needed to keep the comments in `codecheck.yml` "
+                        "(`pip install ruamel.yaml`).*")
+            except Exception as e:  # e.g. read-only file, YAML that ruamel cannot read: the file is unchanged
+                note = f"*Not written: {type(e).__name__}: {e}*"
+        return Markdown(f"{table}\n\n{note}" if note else table)
+
+    @staticmethod
+    def _cell(value):
+        """Table cell for a value of `codecheck.yml` (authors as names with ORCID, `|` escaped)."""
+        if not value:
+            return "*missing*"
+        people = as_list(value)  # a single author may be a mapping
+        authors = isinstance(people, list) and all(isinstance(a, dict) and "name" in a for a in people)
+        text = multiple_name_orcid(people) if authors else str(value)
+        return " ".join(text.split()).replace("|", "\\|")
 
     def find_certificate_id(self, name=None, timeout=10):
         """

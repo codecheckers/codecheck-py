@@ -234,3 +234,11 @@ def test_validate_all_strict_fails_on_warnings(tmp_path):
     assert ('warning', 'codechecker.ORCID') in {(i.level, i.field) for i in found}
     passed, _ = CodecheckValidator(str(path)).validate_all(check_register=False, strict=True)
     assert passed is False
+
+
+@pytest.mark.parametrize('value,expected', [('TODO add title', True), ('FIXME', True), ('example_output.txt', True),
+                                            ('https://github.com/example/repo', True), ('Todorov', False),
+                                            ('Learning from examples', False), ('Mastodon', False), (None, False)])
+def test_placeholders_are_whole_words(value, expected):
+    from validation_config import is_placeholder
+    assert is_placeholder(value) is expected

@@ -36,8 +36,10 @@ PLACEHOLDER_PATTERNS = {
 # Expected formats for validation
 CERTIFICATE_ID = r'\d{4}-\d{3}'  # YYYY-NNN (e.g., 2023-001)
 CERTIFICATE_FORMAT = rf'^{CERTIFICATE_ID}$'
-ORCID_FORMAT = r'^\d{4}-\d{4}-\d{4}-\d{3}[0-9X]$'  # Standard ORCID format
-DOI_FORMAT = r'^10\.\d{4,}/[^\s]+$'  # Basic DOI format
+ORCID_ID = r'\d{4}-\d{4}-\d{4}-\d{3}[0-9X]'  # Standard ORCID format
+ORCID_FORMAT = rf'^{ORCID_ID}$'
+DOI_ID = r'10\.\d{4,}/[^\s]+'  # Basic DOI format
+DOI_FORMAT = rf'^{DOI_ID}$'
 ISO_DATE_FORMAT = r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$'  # ISO 8601 basic format
 
 # Nested field paths for validation
@@ -66,3 +68,13 @@ def normalise(text) -> str:
     """Lower case text without diacritics, for comparing names (`Nüst` matches `Nust`, `Łukasz` matches `Lukasz`)."""
     decomposed = unicodedata.normalize("NFKD", str(text).translate(LETTERS))
     return "".join(c for c in decomposed if not unicodedata.combining(c)).casefold()
+
+
+PLACEHOLDER_WORDS = re.compile(
+    r"(?<![^\W_])(" + "|".join("X{5,}" if p == "XXXXX" else re.escape(p) for p in PLACEHOLDER_PATTERNS['strings'])
+    + r")(?![^\W_])", re.IGNORECASE)  # any run of at least five X, e.g. `zenodo.XXXXXX`
+
+
+def is_placeholder(value) -> bool:
+    """Whether a text contains a placeholder (FIXME, TODO, example, ...) as a word: `TODO add`, not `Todorov`."""
+    return isinstance(value, str) and bool(PLACEHOLDER_WORDS.search(value))

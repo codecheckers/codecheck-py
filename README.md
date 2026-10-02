@@ -58,6 +58,25 @@ Edit `codecheck.yml` in the repository root according to the
 [configuration file specification](https://codecheck.org.uk/spec/config/2.0/).
 Replace all `TODO`/`FIXME`/`NNN` placeholders (see [Validation](#validation-features)).
 
+The paper's title, authors (with ORCIDs where known) and reference can be filled in from its DOI, via
+[Crossref](https://www.crossref.org/) and [OpenAlex](https://openalex.org/) for missing ORCIDs and DOIs Crossref does
+not know (e.g. some preprints). Set `paper.reference` to the DOI (or pass `doi=...`), then in a notebook or Python
+session in `.codecheck/`:
+
+```python
+from codecheck import Codecheck
+check = Codecheck()
+check.update_config_from_doi()            # dry run: table of the changes
+check.update_config_from_doi(apply=True)  # write them to codecheck.yml, comments are kept
+```
+
+Only missing values and placeholders (including invalid ORCIDs) are replaced, use `overwrite=True` to replace all;
+ORCIDs in `codecheck.yml` that the APIs do not know are kept. The rest of the file, its comments and its indentation
+are not changed.
+`check.fetch_paper_metadata()` returns the metadata as a dictionary (also the publication date). Set the
+`CODECHECK_MAILTO` environment variable (or pass `mailto=...`) to use the polite pools of the APIs. Writing needs
+`ruamel.yaml` (in `environment.yml`).
+
 ### 4. Reproduce the results and copy them to `.codecheck/outputs/`
 
 Run the authors' code. Every file listed in the `manifest` of `codecheck.yml` must

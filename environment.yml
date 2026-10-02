@@ -13,6 +13,7 @@ dependencies:
   - pillow  # image dimensions in the manifest summary
   - tabulate
   - pyyaml
+  - ruamel.yaml  # writes codecheck.yml keeping comments (update_config_from_doi)
   - pytest>=7.0
   - pytest-cov
   - requests

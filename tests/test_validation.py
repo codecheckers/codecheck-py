@@ -49,6 +49,9 @@ def test_placeholder_detection():
     assert validator.is_placeholder("This is a template") == True
     assert validator.is_placeholder("example value") == True
     assert validator.is_placeholder("XXXXX") == True
+    assert validator.is_placeholder("XXXXXX") == True
+    assert validator.is_placeholder("10.5281/zenodo.XXXXXX") == True
+    assert validator.is_placeholder("XXXX") == False
 
     # Test non-placeholder values
     assert validator.is_placeholder("Real Title") == False

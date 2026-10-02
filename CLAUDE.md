@@ -31,6 +31,7 @@ codecheck-py/
     ├── validation.py        # `CodecheckValidator` for codecheck.yml
     ├── validation_config.py # Constants (mandatory fields, regexes, placeholder patterns) and shared helpers (as_list, normalise, ...)
     ├── manifest.py          # `ManifestProcessor`: manifest summary, existence check, file copying
+    ├── doi_metadata.py      # Paper metadata from a DOI (Crossref, OpenAlex for missing ORCIDs and as fallback)
     ├── orcid_records.py             # ORCID check digit and public ORCID record lookup (pub.orcid.org)
     ├── register.py          # GitHub API access to the codecheckers/register issues (pagination, token, certificate lookup)
     └── outputs/             # Reproduced outputs from the manifest (gitignored)
@@ -55,15 +56,17 @@ repository-root/
    - `manifest_files()` (per-file sections by type: tables, text/JSON, images; checksums; never raises), `csv_files()` (CSV only), `git_info()` (commit SHA), `latex_figures()` (legacy PDF/EPS figure inclusion)
    - `session_info()` (via `session_info2`)
    - Validation: `validate(check_orcid_online=False, ...)`, `validation_report()`, and `Codecheck(validate=True, strict=...)`
+   - Paper metadata: `fetch_paper_metadata(doi=None)` (dict), `update_config_from_doi(doi=None, apply=False, overwrite=False)` (dry run table; `apply=True` writes `paper.*` with `ruamel.yaml`, keeping comments; only missing/placeholder values unless `overwrite`)
    - Register: `find_certificate_id(name=None)` (register issues with the first author's surname in the title and their certificate IDs)
    - Manifest: `validate_manifest_files()`, `manifest_summary()`, `copy_manifest_files()`
    - Module-level helpers: `name_orcid`, `multiple_name_orcid`, `multiple_name`, `url_link`, `short_link`
-2. **`validation.py` / `validation_config.py`**: checks YAML syntax, mandatory fields, placeholders (FIXME/TODO/example/...), certificate ID (`YYYY-NNN`), ORCID (format and check digit; with `check_orcid_online=True` existence and name match via `orcid_records.py`), DOI/URL, ISO dates, paper/codechecker/manifest structure, manifest file existence in `outputs/`, and (via `register.py`) that a matching issue exists in the [codecheckers/register](https://github.com/codecheckers/register); for a placeholder certificate ID it adds an `info` issue with candidate IDs, also when the lookup fails (info never fails validation). Network errors only warn. Non-strict mode fails on errors only; strict mode also fails on warnings.
+2. **`validation.py` / `validation_config.py`**: checks YAML syntax, mandatory fields, placeholders (FIXME/TODO/example/... as whole words, `validation_config.is_placeholder()`: `TODO add` but not `Todorov`), certificate ID (`YYYY-NNN`), ORCID (format and check digit; with `check_orcid_online=True` existence and name match via `orcid_records.py`), DOI/URL, ISO dates, paper/codechecker/manifest structure, manifest file existence in `outputs/`, and (via `register.py`) that a matching issue exists in the [codecheckers/register](https://github.com/codecheckers/register); for a placeholder certificate ID it adds an `info` issue with candidate IDs, also when the lookup fails (info never fails validation). Network errors only warn. Non-strict mode fails on errors only; strict mode also fails on warnings.
 3. **`register.py`**: `iter_register_issues()` reads the register issues page by page while they are consumed (follows the `Link` header, skips pull requests, token from `GITHUB_TOKEN`/`GITHUB_PAT`, raises `RequestException` after `MAX_PAGES` instead of pretending a complete scan; `find_issue()` stops at the match), `fetch_register_issues()` returns all; `certificate_candidates()` matches a name as a whole word without diacritics; `find_issue()` matches the exact certificate ID. Tests mock `register.requests.get`.
 4. **`orcid_records.py`**: `check_digit_ok()` (ISO 7064 mod 11-2), `fetch_orcid_names()` (public API, 404 -> `OrcidNotFound`, 409 or deactivated names -> `OrcidDeactivated`, no public name -> None), `lookup()` (status `FOUND`/`NO_PUBLIC_NAME`/`NOT_FOUND`/`DEACTIVATED`/`UNAVAILABLE`), `name_matches()` (normalised words: all family name words plus one given name or its initial, or the credit name). Not named `orcid.py`: that would clash with the `python-orcid` package (`.codecheck/` comes after site-packages on Binder). The online check stops after the first network failure. `CodecheckValidator._orcid_entries()` collects the ORCIDs of codecheckers and authors for the offline and online checks. Tests mock `orcid_records.requests.get`.
-5. **`manifest.py`**: `ManifestProcessor` for manifest summary stats, output-file existence and copying files into `outputs/`.
-6. **`codecheck.ipynb`**: template notebook using the `Codecheck` class.
-7. **`codecheck.typ`**: Typst document that `read("codecheck.md")` and renders the final PDF.
+5. **`doi_metadata.py`**: `fetch_paper_metadata()` asks Crossref, adds missing ORCIDs from OpenAlex (same position and family name; OpenAlex is skipped if all authors have one), falls back to OpenAlex; `plan_paper_updates()` decides which `paper` fields may be replaced (missing, `is_placeholder()`, invalid ORCIDs, or `overwrite`), `write_paper_fields()` writes them with `ruamel.yaml`; `Codecheck.update_config_from_doi()` only renders the table; 404 -> None, both unknown -> `DoiNotFound`; session cache `_cache`; `mailto` / `CODECHECK_MAILTO` for the polite pools. Tests mock `doi_metadata.requests.get`.
+6. **`manifest.py`**: `ManifestProcessor` for manifest summary stats, output-file existence and copying files into `outputs/`.
+7. **`codecheck.ipynb`**: template notebook using the `Codecheck` class.
+8. **`codecheck.typ`**: Typst document that `read("codecheck.md")` and renders the final PDF.
 
 ### Configuration File (`codecheck.yml`)
 
@@ -83,7 +86,7 @@ conda env create -f environment.yml
 conda activate codecheck-env
 ```
 
-`environment.yml` provides Python >= 3.9, notebook/nbconvert, jupyterlab, pandas, matplotlib, tabulate, pyyaml, requests, session-info2, ipywidgets, pytest and pytest-cov. **Typst** (`typst` CLI) must be installed separately for PDF output.
+`environment.yml` provides Python >= 3.9, notebook/nbconvert, jupyterlab, pandas, matplotlib, tabulate, pyyaml, ruamel.yaml, requests, session-info2, ipywidgets, pytest and pytest-cov. **Typst** (`typst` CLI) must be installed separately for PDF output.
 
 ### Generating the Certificate PDF
 

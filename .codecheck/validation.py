@@ -19,6 +19,7 @@ from validation_config import (
     OPTIONAL_FIELDS,
     PLACEHOLDER_PATTERNS,
     CERTIFICATE_FORMAT,
+    is_placeholder,
     is_placeholder_certificate,
     ORCID_FORMAT,
     DOI_FORMAT,
@@ -174,13 +175,7 @@ class CodecheckValidator:
         bool
             True if value appears to be a placeholder
         """
-        if not isinstance(value, str):
-            return False
-        value_lower = value.lower().strip()
-        for pattern in PLACEHOLDER_PATTERNS['strings']:
-            if pattern.lower() in value_lower:
-                return True
-        return False
+        return is_placeholder(value)
 
     def validate_certificate_id(self) -> bool:
         """
