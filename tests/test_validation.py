@@ -295,13 +295,15 @@ def test_codechecker_list_entry_without_name_is_error(tmp_path):
 
 
 def test_template_config_placeholders():
-    """The template codecheck.yml uses `2026-NNN` and `zenodo.TODO` placeholders, flagged as such."""
+    """The template codecheck.yml uses `2026-NNN`, `zenodo.TODO` and `YYYY-MM-DDTHH:MM:SS` placeholders, flagged as such."""
     validator = CodecheckValidator(Path(__file__).parent.parent / 'codecheck.yml')
     validator.validate_yaml_syntax()
     assert validator.config['version'] == 'https://codecheck.org.uk/spec/config/2.0/'
     assert validator.validate_certificate_id() is False
     assert validator.validate_report_doi() is False
-    assert {(i.level, i.field) for i in validator.issues} == {('warning', 'certificate'), ('warning', 'report')}
+    assert validator.validate_check_time() is False
+    assert {(i.level, i.field) for i in validator.issues} == {('warning', 'certificate'), ('warning', 'report'),
+                                                              ('warning', 'check_time')}
 
 
 @pytest.mark.parametrize('cert', ['2026-NNN', 'YYYY-NNN'])

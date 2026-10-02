@@ -242,3 +242,19 @@ def test_validate_all_strict_fails_on_warnings(tmp_path):
 def test_placeholders_are_whole_words(value, expected):
     from validation_config import is_placeholder
     assert is_placeholder(value) is expected
+
+
+@pytest.mark.parametrize('value', ['YYYY-MM-DDTHH:MM:SS', '2026-MM-DD', 'TODO'])
+def test_check_time_placeholder_is_a_warning_with_the_current_time(tmp_path, value):
+    validator = make(tmp_path, {'check_time': value})
+    assert validator.validate_check_time() is False
+    [issue] = validator.issues
+    assert issue.level == 'warning' and 'placeholder' in issue.message
+    assert 'e.g. now: "20' in issue.suggestion  # a timestamp to copy
+
+
+def test_check_time_valid_and_invalid_are_no_placeholders(tmp_path):
+    assert make(tmp_path, {'check_time': '2026-10-03T14:30:00'}).validate_check_time() is True
+    validator = make(tmp_path, {'check_time': '03.10.2026'})
+    assert validator.validate_check_time() is False
+    assert ('error', 'check_time') in issues(validator)

@@ -34,5 +34,5 @@ report: https://doi.org/10.5281/zenodo.TODO
 summary: TODO add summary
 # a URL or a list of URLs of the checked code and data
 repository: https://github.com/example/repo
-# when the check was completed (ISO 8601)
-check_time: "2026-01-01T12:00:00"
+# when the check was completed (ISO 8601, in quotes), e.g. "2026-10-03T14:30:00"
+check_time: "YYYY-MM-DDTHH:MM:SS"

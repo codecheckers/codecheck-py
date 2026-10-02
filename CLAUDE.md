@@ -73,7 +73,7 @@ repository-root/
 Follows the [CODECHECK configuration specification](https://codecheck.org.uk/spec/config/2.0/). Key fields:
 - `version`, `certificate` (`YYYY-NNN`; `2026-NNN` is the template placeholder), `report` (DOI/URL; template placeholder `https://doi.org/10.5281/zenodo.TODO`)
 - `paper`: title, authors (name + ORCID), reference
-- `repository`, `codechecker` (list of name + ORCID), `check_time` (ISO), `summary`
+- `repository`, `codechecker` (list of name + ORCID), `check_time` (ISO; template placeholder `YYYY-MM-DDTHH:MM:SS`, `validation_config.is_placeholder_check_time()`, warning with the current time as suggestion; `Codecheck._check_time()` renders an unparsable value in italics instead of failing), `summary`
 - `manifest`: list of `file` (path), optional `comment`
 - The template `codecheck.yml` starts with `%YAML 1.1` / `---` as in spec 2.0, has comments per field and placeholders flagged by the validation (invalid placeholder ORCIDs on purpose: check digit error)
 

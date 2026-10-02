@@ -123,3 +123,10 @@ def test_methods_without_manifest(tmp_path, monkeypatch):
     assert check.validate_manifest_files() == (False, [])
     assert 'No manifest found' in check.manifest_summary().data
     assert 'No manifest found' in check.copy_manifest_files().data
+
+
+def test_check_time_placeholder_is_shown_not_parsed(workspace):
+    (workspace / 'codecheck.yml').write_text(yaml.dump({**VALID, 'check_time': 'YYYY-MM-DDTHH:MM:SS'}))
+    check = Codecheck()
+    assert 'Date of check | *YYYY-MM-DDTHH:MM:SS*' in check.summary_table().data
+    assert '(*YYYY-MM-DDTHH:MM:SS*)' in check.citation().data

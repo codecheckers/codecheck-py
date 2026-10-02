@@ -24,6 +24,9 @@ PLACEHOLDER_PATTERNS = {
         r'^0000-\d{3}$',      # Zero year
         r'^9999-\d{3}$',      # Invalid year
     ],
+    'check_time_patterns': [
+        r'YYYY|MM|DD|HH|SS',  # Format hint, e.g. YYYY-MM-DDTHH:MM:SS
+    ],
     'doi_patterns': [
         r'XXXXX',
         r'placeholder',
@@ -52,6 +55,12 @@ MANIFEST_ENTRY_FIELDS = ['file']  # 'comment' is optional
 def as_list(value):
     """A single person (dict) is allowed in `codecheck.yml` in place of a list of people."""
     return [value] if isinstance(value, dict) else value
+
+
+def is_placeholder_check_time(value) -> bool:
+    """Whether a check time is a placeholder such as `YYYY-MM-DDTHH:MM:SS` or `TODO`."""
+    return isinstance(value, str) and (
+        is_placeholder(value) or any(re.search(p, value) for p in PLACEHOLDER_PATTERNS['check_time_patterns']))
 
 
 def is_placeholder_certificate(cert) -> bool:

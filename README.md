@@ -284,6 +284,8 @@ The validation system performs the following checks on your `codecheck.yml` file
 #### 7. **Date/Time Format Validation**
 
 - ✓ `check_time` must be ISO 8601 format
+- ✓ Detects a placeholder `check_time` (`YYYY-MM-DDTHH:MM:SS` as in the template, or `TODO`): a warning that suggests
+  the current time; the certificate shows the placeholder in italics
 - ✓ Format: `YYYY-MM-DDTHH:MM:SS`
 - ✓ Example: `2023-11-15T14:30:00`
 

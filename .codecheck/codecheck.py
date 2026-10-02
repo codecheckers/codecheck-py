@@ -169,7 +169,7 @@ Item | Value
             f"Reference | {url_link(self.conf['paper']['reference'])}",
             f"Repository | {url_link(self.conf['repository'])}",
             f"Codechecker(s) | {multiple_name_orcid(self.conf['codechecker'])}",
-            f"Date of check | {datetime.fromisoformat(self.conf['check_time']).date()}",
+            f"Date of check | {self._check_time(lambda t: t.date())}",
             f"Summary | {self.get_formatted_summary()}",
         ]
         return Markdown(summary_header + "\n".join(summary_rows))
@@ -205,6 +205,14 @@ File | Comment | Size (b)
         ]
         return Markdown(files_header + "\n".join(files_rows))
 
+    def _check_time(self, part):
+        """`part` of the parsed `check_time`, or the value in italics if it is not a date (e.g. a placeholder)."""
+        value = self.conf.get('check_time')
+        try:
+            return part(value if isinstance(value, datetime) else datetime.fromisoformat(value))
+        except (TypeError, ValueError):
+            return f"*{value}*"
+
     def summary(self):
         """
         Markdown rendering of the `summary` field in `codecheck.yml`.
@@ -217,7 +225,7 @@ File | Comment | Size (b)
         """
         return Markdown(
             f"{multiple_name(self.conf['codechecker'])} "
-            f"({datetime.fromisoformat(self.conf['check_time']).year}). "
+            f"({self._check_time(lambda t: t.year)}). "
             f"CODECHECK Certificate {self.conf['certificate']}. "
             f"Zenodo. {url_link(self.conf['report'])}"
         )

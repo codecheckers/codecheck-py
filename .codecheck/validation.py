@@ -21,6 +21,7 @@ from validation_config import (
     CERTIFICATE_FORMAT,
     is_placeholder,
     is_placeholder_certificate,
+    is_placeholder_check_time,
     ORCID_FORMAT,
     DOI_FORMAT,
     ISO_DATE_FORMAT,
@@ -395,6 +396,16 @@ class CodecheckValidator:
                 field='check_time',
                 message=f"check_time must be a string, got {type(check_time).__name__}",
                 suggestion="Use ISO 8601 format: YYYY-MM-DDTHH:MM:SS"
+            ))
+            return False
+
+        if is_placeholder_check_time(check_time):
+            now = datetime.now().isoformat(timespec='seconds')
+            self.issues.append(ValidationIssue(
+                level='warning',
+                field='check_time',
+                message=f"check_time '{check_time}' is a placeholder",
+                suggestion=f"Set it to the date and time when the check was completed, e.g. now: \"{now}\" (in quotes)"
             ))
             return False
 
