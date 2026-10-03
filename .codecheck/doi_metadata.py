@@ -6,15 +6,14 @@ the `paper` section of `codecheck.yml` with it
 
 import copy
 import html
-import io
 import os
 import re
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import quote
 
 import requests
-import yaml
 
+from config_io import write_config_fields
 from orcid_records import check_digit_ok, words
 from validation_config import DOI_ID, ORCID_ID, as_list, is_placeholder
 
@@ -191,29 +190,5 @@ def plan_paper_updates(config, metadata: Dict, overwrite: bool = False) -> List[
 
 
 def write_paper_fields(path, updates: Dict) -> Dict:
-    """
-    Set `paper.<key>` in a `codecheck.yml` for the updates, keeping comments, order and quotes (`ruamel.yaml`), and
-    return the new configuration.
-    """
-    from ruamel.yaml import YAML
-
-    from ruamel.yaml.util import load_yaml_guess_indent
-
-    with open(path) as f:
-        text = f.read()
-    data, indent, block_seq_indent = load_yaml_guess_indent(text)
-    rt = YAML()  # round-trip, with the indentation of the file and without folding long lines
-    rt.preserve_quotes = True
-    rt.width = 4096
-    rt.indent(mapping=indent or 2, sequence=(indent or 2) + (block_seq_indent or 0), offset=block_seq_indent or 0)
-    data = rt.load(text)
-    if data is None:  # empty file
-        data = rt.load("{}")
-    if not isinstance(data.get("paper"), dict):
-        data["paper"] = {}
-    data["paper"].update(updates)
-    out = io.StringIO()
-    rt.dump(data, out)  # fails before the file is touched
-    with open(path, "w") as f:
-        f.write(out.getvalue())
-    return yaml.safe_load(out.getvalue())
+    """Set `paper.<key>` in a `codecheck.yml` for the updates, see `write_config_fields()`."""
+    return write_config_fields(path, updates, section="paper")

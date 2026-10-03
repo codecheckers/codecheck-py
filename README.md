@@ -114,6 +114,57 @@ The script runs the notebook (hiding the code cells, and the output of cells tag
 (set `MAX_MD_BYTES` to change that limit), which usually means that very large
 output (e.g. big tables) ended up in the report.
 
+### 6. Publish the certificate on Zenodo
+
+`.codecheck/zenodo_deposit.py` creates the record of the certificate on [Zenodo](https://zenodo.org), as the
+[CODECHECK community](https://zenodo.org/communities/codecheck/) expects it. It never publishes: you check the draft on
+Zenodo and publish it yourself. Test everything on the [Zenodo sandbox](https://sandbox.zenodo.org) first (`--sandbox`,
+DOIs `10.5072/zenodo.N`), with a separate account and token.
+
+1. Create a personal access token with the scopes `deposit:write` and `deposit:actions`
+   ([sandbox](https://sandbox.zenodo.org/account/settings/applications/tokens/new/),
+   [Zenodo](https://zenodo.org/account/settings/applications/tokens/new/)) and store it in a `.env` file in the
+   repository root or in `.codecheck/` (or in the environment):
+
+   ```bash
+   ZENODO_API_TOKEN_SANDBOX=...
+   ZENODO_API_TOKEN=...
+   ```
+
+   **Never commit this file**: add `.env` to `.gitignore`; the script refuses to run otherwise.
+2. Reserve the DOI: this creates a draft record, reserves its DOI, requests the inclusion in the CODECHECK community
+   (`codecheck`, on the sandbox `codecheck-sandbox`, another one with `--community`; the request is not submitted, the
+   draft stays editable) and writes the DOI into `report` in `codecheck.yml`
+   (comments are kept). It asks first, because a DOI cannot be deleted.
+
+   ```bash
+   cd .codecheck
+   python zenodo_deposit.py reserve --sandbox
+   ```
+
+3. Rebuild the certificate so that it shows the DOI (`sh notebook_to_pdf.sh`), then upload it and set the metadata:
+
+   ```bash
+   python zenodo_deposit.py all --sandbox
+   python zenodo_deposit.py status --sandbox
+   ```
+
+   `all` uploads `codecheck.pdf` (the preview) and `codecheck.ipynb`, and sets the metadata from `codecheck.yml`:
+   title `CODECHECK Certificate <id>`, the certificate's register URL as alternate identifiers (schemes URL and Other),
+   the codecheckers as creators, the summary, the paper (`reviews`) and the
+   repository (`is supplemented by`) as related works, report type, CC-BY 4.0 license. It refuses a PDF that is older
+   than `codecheck.yml` or does not contain the DOI (`--force` to override). Options: `--include-config` uploads
+   `codecheck.yml`, `--include-outputs --outputs-license <id>` uploads the manifest files from `outputs/` as
+   `codecheck-outputs.zip` under the license of the original authors (only with their consent, as the curation policy
+   requires for files not created by the codechecker) (a
+   [Zenodo license ID](https://zenodo.org/api/vocabularies/licenses?q=), e.g. `mit`), `--file PATH` further files.
+   `python zenodo_deposit.py metadata --dry-run` prints the metadata without contacting Zenodo. `status` shows the
+   account of the token, the state of the record, its files and the community request.
+4. Check the draft on Zenodo (link in the output), then publish it there. Repeat steps 2 and 3 without `--sandbox`.
+
+In a clone of this repository, `make zenodo-reserve-sandbox`, `make zenodo-sandbox` (rebuilds the PDF first) and
+`make zenodo-status-sandbox` do the same (`make help` lists all targets, `ARGS=...` passes options).
+
 ### Output files
 
 `check.manifest_files()` shows every file of the manifest according to its type. Each
@@ -173,6 +224,7 @@ repository-root/
     ├── notebook_to_pdf.sh           # Notebook -> Markdown -> PDF script
     ├── validation.py                # Validation module
     ├── validation_config.py         # Validation configuration
+    ├── zenodo_deposit.py            # Publish the certificate on Zenodo (command line)
     ├── manifest.py                  # Manifest processing
     ├── register.py                  # CODECHECK register issues (GitHub API)
     ├── codecheck.md                 # Generated Markdown (intermediate output)

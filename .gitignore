@@ -5,3 +5,6 @@ outputs/*
 .codecheck/*.md
 .coverage
 .pytest_cache/
+
+# local secrets (Zenodo API tokens)
+.env

@@ -4,6 +4,7 @@ Configuration constants for codecheck.yml validation, and small helpers shared b
 
 import re
 import unicodedata
+from typing import Tuple
 
 # Directories (relative to the repository root) that can contain the CODECHECK files and the `outputs/` directory,
 # in order of preference: `.codecheck/` (default) or `codecheck/`
@@ -87,3 +88,16 @@ PLACEHOLDER_WORDS = re.compile(
 def is_placeholder(value) -> bool:
     """Whether a text contains a placeholder (FIXME, TODO, example, ...) as a word: `TODO add`, not `Todorov`."""
     return isinstance(value, str) and bool(PLACEHOLDER_WORDS.search(value))
+
+
+def split_name(name) -> Tuple[str, str]:
+    """
+    (given names, family name) of a name as `Given Family` or `Family, Given`; a heuristic: `First van der Last` gives
+    the family name `Last`. A single word is returned as family name with empty given names (e.g. an organisation).
+    """
+    name = str(name or "").strip()
+    if "," in name:
+        family, given = (p.strip() for p in name.split(",", 1))
+        return given, family
+    *given, family = name.split() or [""]
+    return " ".join(given), family

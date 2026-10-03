@@ -8,7 +8,7 @@ from typing import Dict, Iterable, Iterator, List, Optional
 
 import requests
 
-from validation_config import CERTIFICATE_ID, as_list, normalise
+from validation_config import CERTIFICATE_ID, as_list, normalise, split_name
 
 REGISTER_ISSUES_URL = "https://api.github.com/repos/codecheckers/register/issues"
 MAX_PAGES = 20  # 100 issues per page
@@ -56,10 +56,7 @@ def surname(name: str) -> str:
     Surname from a name as `First Last` or `Last, First`. A heuristic: for `First van der Last` it is `Last`, which is
     still a word of the register issue titles (`Surname et al. | YYYY-NNN`).
     """
-    name = str(name).strip()
-    if "," in name:
-        return name.split(",")[0].strip()
-    return name.split()[-1] if name else ""
+    return split_name(name)[1]
 
 
 def first_author_surname(config) -> Optional[str]:
