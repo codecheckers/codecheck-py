@@ -264,3 +264,18 @@ def test_non_string_file_paths(layout):
     assert processor.validate_output_files_exist() == (False, [2024])
     assert processor.get_manifest_summary()['total_files'] == 1
     assert '2024' in Codecheck().manifest_files().data
+
+
+def test_output_file_status_is_shared_by_validator_and_processor(layout):
+    root, name = layout
+    manifest = MANIFEST + [{'file': '../../data/a.csv'}, {'file': 'missing.csv'}, {'file': 'data'}]
+    (root / 'codecheck.yml').write_text(yaml.dump({'manifest': manifest}))
+    processor = ManifestProcessor(manifest, root)
+    assert processor.output_file_status() == {'outside': ['../../data/a.csv'], 'missing': ['missing.csv', 'data']}
+    assert processor.validate_output_files_exist() == (False, ['../../data/a.csv', 'missing.csv', 'data'])
+    validator = CodecheckValidator(str(root / 'codecheck.yml'))
+    validator.validate_yaml_syntax()
+    assert validator.validate_manifest_files() is False
+    assert [i.message for i in validator.issues] == [
+        'Manifest path(s) outside of the outputs directory: ../../data/a.csv',
+        'Missing 2 file(s) in outputs/: missing.csv, data']

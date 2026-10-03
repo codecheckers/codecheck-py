@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime
 import requests
 
-from manifest import existing_file, find_outputs_dir, manifest_file_paths, output_path
+from manifest import ManifestProcessor
 import orcid_records
 from register import certificate_candidates, describe, find_issue, first_author_surname, iter_register_issues
 from validation_config import (
@@ -628,9 +628,11 @@ class CodecheckValidator:
             # Already caught by mandatory field check
             return False
 
-        outputs_dir = find_outputs_dir(base_dir)
-        file_paths = manifest_file_paths(manifest)
-        outside_files = [f for f in file_paths if output_path(outputs_dir, f) is None]
+        processor = ManifestProcessor(manifest if isinstance(manifest, list) else [], base_dir)
+        outputs_dir = processor.outputs_dir
+        status = processor.output_file_status()
+        outside_files = status["outside"]
+        missing_files = status["missing"] if outputs_dir.exists() else []
 
         if not outputs_dir.exists():
             self.issues.append(ValidationIssue(
@@ -639,9 +641,6 @@ class CodecheckValidator:
                 message=f"Outputs directory does not exist: {outputs_dir}",
                 suggestion="Create .codecheck/outputs/ (or codecheck/outputs/) directory and copy manifest files there"
             ))
-            missing_files = []
-        else:
-            missing_files = [f for f in file_paths if f not in outside_files and existing_file(outputs_dir, f) is None]
 
         def listing(files):
             return ', '.join(map(str, files[:5])) + ('...' if len(files) > 5 else '')

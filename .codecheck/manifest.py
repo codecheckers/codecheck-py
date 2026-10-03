@@ -102,6 +102,17 @@ class ManifestProcessor:
         missing = [f for f in self._file_paths() if existing_file(source_dir, f) is None]
         return len(missing) == 0, missing
 
+    def output_file_status(self) -> Dict[str, List]:
+        """
+        Manifest files that are not usable in the outputs directory: `outside` (paths leading out of it, `..` or
+        absolute) and `missing` (not a file in it, or the outputs directory does not exist). The one place that decides
+        this for the validation, the notebook methods and the copy.
+        """
+        paths = list(self._file_paths())
+        outside = [f for f in paths if output_path(self.outputs_dir, f) is None]
+        missing = [f for f in paths if f not in outside and existing_file(self.outputs_dir, f) is None]
+        return {"outside": outside, "missing": missing}
+
     def validate_output_files_exist(self) -> Tuple[bool, List[str]]:
         """
         Check if all manifest files exist in the outputs directory.
@@ -109,13 +120,10 @@ class ManifestProcessor:
         Returns
         -------
         tuple
-            (all_exist: bool, missing_files: List[str])
+            (all_exist: bool, missing_files: List[str]); paths outside of the outputs directory count as missing
         """
-        if not self.outputs_dir.exists():
-            return False, list(self._file_paths())
-
-        # paths outside of outputs/ count as missing
-        missing = [f for f in self._file_paths() if existing_file(self.outputs_dir, f) is None]
+        status = self.output_file_status()
+        missing = [f for f in self._file_paths() if f in status["outside"] or f in status["missing"]]
         return len(missing) == 0, missing
 
     def get_file_sizes(self, use_outputs: bool = True) -> Dict[str, int]:
