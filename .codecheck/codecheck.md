@@ -17,7 +17,7 @@ Author(s) | FIXME add name (ORCID: 0123-4567-8910-1112)
 Reference | [https://doi.org/10.1234/example](https://doi.org/10.1234/example)
 Repository | [https://github.com/example/repo](https://github.com/example/repo)
 Codechecker(s) | FIXME add name (ORCID: 0123-4567-8910-1112)
-Date of check | 2026-01-01
+Date of check | *YYYY-MM-DDTHH:MM:SS*
 Summary | TODO add summary
 
 
@@ -37,7 +37,7 @@ File | Comment | Size (b)
 
 
 
-This check is based on the commit `d357eee68bffae95f53b1499c58e860095e6a3af`.
+This check is based on the commit `247d6f8588a2ad22ea8d7257993aa158868415a3` (the working tree had uncommitted changes to tracked files outside of the CODECHECK files).
 
 
 
@@ -82,7 +82,7 @@ Author comment: *TODO describe the file, e.g. 'Figure 1 in the paper'*
 
 
 
-FIXME add name (2026). CODECHECK Certificate 2026-NNN. Zenodo. [https://doi.org/10.5281/zenodo.TODO](https://doi.org/10.5281/zenodo.TODO)
+FIXME add name (*YYYY-MM-DDTHH:MM:SS*). CODECHECK Certificate 2026-NNN. Zenodo. [https://doi.org/10.5281/zenodo.TODO](https://doi.org/10.5281/zenodo.TODO)
 
 
 
@@ -108,53 +108,53 @@ si.session_info(os=True, cpu=True, gpu=True, dependencies=True)
 
 
 ```bash
-stack-data	0.6.3
-executing	2.2.0
-platformdirs	4.9.2
-setuptools	80.9.0
-urllib3	2.6.3
-Brotli	1.0.9
-decorator	4.4.2
-psutil	7.0.0
-argcomplete	3.6.3
-chardet	5.2.0
-numpy	1.26.4
-wcwidth	0.2.13
-requests	2.32.5
-pure_eval	0.2.3
-PySocks	1.7.1
-parso	0.8.4
-backports.tarfile	1.2.0
-virtualenvwrapper	4.8.4
-ipython	8.34.0
-jupyter-core	5.7.2
-python-dateutil	2.8.2
-PyYAML	6.0.1
-tzdata	2025.2
-sphinxcontrib-jsmath	1.0.1
-sphinxcontrib-autoprogram	0.1.9
-debugpy	1.8.13
 certifi	2026.1.4 (2026.01.04)
-charset-normalizer	3.2.0
-Pygments	2.19.2
-idna	3.3
-matplotlib	3.10.0
-jedi	0.19.2
-pyzmq	26.3.0
-colorama	0.4.6
-prompt_toolkit	3.0.50
-six	1.16.0
-pytz	2022.1
-packaging	24.2
-traitlets	5.14.3
+Brotli	1.0.9
 asttokens	3.0.0
 tornado	6.4.2
+numpy	1.26.4
+charset-normalizer	3.2.0
+requests	2.32.5
+Pygments	2.19.2
+traitlets	5.14.3
+matplotlib	3.10.0
+tzdata	2025.2
+setuptools	80.9.0
+chardet	5.2.0
+colorama	0.4.6
+packaging	24.2
+executing	2.2.0
+urllib3	2.6.3
+six	1.16.0
+sphinxcontrib-autoprogram	0.1.9
+pure_eval	0.2.3
+idna	3.3
+PyYAML	6.0.1
+pyzmq	26.3.0
+argcomplete	3.6.3
+stack-data	0.6.3
+PySocks	1.7.1
+ipython	8.34.0
+backports.tarfile	1.2.0
+debugpy	1.8.13
+virtualenvwrapper	4.8.4
+pytz	2022.1
+decorator	4.4.2
+sphinxcontrib-jsmath	1.0.1
+python-dateutil	2.8.2
+jupyter-core	5.7.2
+platformdirs	4.9.2
+parso	0.8.4
+wcwidth	0.2.13
+prompt_toolkit	3.0.50
+jedi	0.19.2
+psutil	7.0.0
 ----	----
 Python	3.10.12 (main, Aug 31 2026, 10:18:17) [GCC 11.4.0]
 OS	Linux-6.8.0-138-generic-x86_64-with-glibc2.35
 CPU	12/12 logical CPU cores, x86_64
 GPU	No GPU found
-Updated	2026-10-02 21:56
+Updated	2026-10-03 06:09
 ```
 
 
