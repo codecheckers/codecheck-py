@@ -5,6 +5,7 @@ Publish the CODECHECK certificate on Zenodo (https://zenodo.org), as a command l
     sh notebook_to_pdf.sh                          # rebuild the certificate, now with its DOI
     python zenodo_deposit.py all [--sandbox]       # upload certificate and notebook, set the metadata
     python zenodo_deposit.py status [--sandbox]
+    python zenodo_deposit.py new-version [--sandbox]   # after publishing: draft of a new version, its DOI -> `report`
 
 Run in the template directory (`.codecheck/`). The record is never published: check the draft on Zenodo and publish it
 yourself. Uses the InvenioRDM API of Zenodo (https://inveniordm.docs.cern.ch/reference/rest_api_drafts_records/).
@@ -229,6 +230,16 @@ def build_metadata(conf: Dict, outputs_license: Optional[str] = None) -> Tuple[D
 
 # --- API -------------------------------------------------------------------------------------------------------------
 
+def record_doi(record: Optional[Dict]) -> Optional[str]:
+    """The DOI of a record or draft as returned by the API, None if it has none (yet)."""
+    return (((record or {}).get("pids") or {}).get("doi") or {}).get("identifier")
+
+
+def in_a_community(record: Optional[Dict]) -> bool:
+    """Whether the record family (all versions) of a record or draft is included in a community."""
+    return bool((((record or {}).get("parent") or {}).get("communities") or {}).get("ids"))
+
+
 class Zenodo:
     """Minimal client for the draft records of the Zenodo InvenioRDM API."""
 
@@ -280,9 +291,31 @@ class Zenodo:
                               f"new version there")
         return draft
 
+    def record_state(self, rid) -> Tuple[str, Optional[Dict]]:
+        """
+        ("draft", draft) for an unpublished record, ("published", record or its edit draft), or ("missing", None) for
+        a record that does not exist (e.g. deleted on the sandbox).
+        """
+        draft = self.get_draft(rid)
+        if draft is not None:
+            return ("published" if draft.get("is_published") else "draft"), draft
+        try:
+            return "published", self.call("GET", f"/records/{rid}")
+        except ZenodoError as e:
+            if e.status == 404:
+                return "missing", None
+            raise
+
+    def new_version(self, rid) -> Dict:
+        """
+        Draft of a new version of a published record (new record ID, metadata copied without publication date, no
+        files, no DOI yet). Zenodo allows one unpublished new version per record and returns the existing one
+        (with its DOI, if reserved) when asked again.
+        """
+        return self.call("POST", f"/records/{rid}/versions")
+
     def reserve_doi(self, rid) -> str:
-        record = self.call("POST", f"/records/{rid}/draft/pids/doi") or self.get_draft(rid) or {}
-        doi = ((record.get("pids") or {}).get("doi") or {}).get("identifier")
+        doi = record_doi(self.call("POST", f"/records/{rid}/draft/pids/doi") or self.get_draft(rid))
         if not doi:
             raise ZenodoError(f"No DOI reserved for record {rid}")
         return doi
@@ -408,13 +441,67 @@ def confirm(question: str, yes: bool) -> bool:
         return False
 
 
+def write_report(zenodo: Zenodo, config: Path, rid, doi: str, out, advice: str = "do not reserve again",
+                 message: str = "Reserved DOI"):
+    """Show the DOI (before anything else can fail) and write it to `report` in codecheck.yml."""
+    out(f"{message} {doi} for the draft {zenodo.draft_url(rid)}.")
+    try:
+        write_config_fields(config, {"report": f"https://doi.org/{doi}"})
+    except Exception as e:
+        raise ZenodoError(f"Could not write the DOI to {config} ({type(e).__name__}: {e}): set "
+                          f"`report: https://doi.org/{doi}` yourself, {advice}")
+    out(f"Wrote it to `report` in {config}.")
+
+
+def cmd_new_version(zenodo: Zenodo, config: Path, yes: bool = False, out=print) -> Optional[str]:
+    """
+    Draft of a new version of the published certificate (e.g. a correction) with a new DOI, written to `report`.
+    The files are not copied: rebuild the certificate and upload it with `all`. The new version stays in the
+    community of the published one.
+    """
+    conf = load_config(config)
+    rid = require_record(conf, zenodo.sandbox)
+    state, record = zenodo.record_state(rid)
+    if state == "missing":
+        raise ZenodoError(f"Record {rid} (`report` in {config}) does not exist on {zenodo.url}")
+    if state == "draft":
+        out(f"Record {rid} is not published yet: change the draft with `all` ({zenodo.draft_url(rid)}).")
+        return None
+    if not confirm(f"Create a new version of record {rid} on {zenodo.url} with a new DOI? DOIs cannot be deleted.",
+                   yes):
+        out("No new version.")
+        return None
+    version = zenodo.new_version(rid)
+    new_rid, doi = version["id"], record_doi(version)
+    advice = "running new-version again returns this draft"
+    if doi:  # Zenodo returned the unpublished new version that existed already
+        write_report(zenodo, config, new_rid, doi, out, advice, "The new version exists already, DOI")
+    else:
+        doi = zenodo.reserve_doi(new_rid)
+        write_report(zenodo, config, new_rid, doi, out, advice)
+    index = (version.get("versions") or {}).get("index")
+    out(f"New version{f' {index}' if index else ''} of record {rid}. Next: update the certificate (e.g. check_time, "
+        f"notes), rebuild it (sh notebook_to_pdf.sh) and upload it (all).")
+    if not in_a_community(record):
+        out("Warning: the published record is not in a community, neither is the new version: request the "
+            "inclusion on Zenodo.")
+    return doi
+
+
 def cmd_reserve(zenodo: Zenodo, config: Path, yes: bool = False, out=print) -> Optional[str]:
     """Create a draft record with a reserved DOI, request the CODECHECK community, write the DOI to `report`."""
     conf = load_config(config)
     report = conf.get("report")
     rid = record_id(report, zenodo.sandbox)
     if rid:
-        out(f"codecheck.yml already has a record: {report} ({zenodo.draft_url(rid)}), nothing reserved.")
+        try:  # only for the hint: reserving nothing must not fail
+            state = zenodo.record_state(rid)[0]
+        except (ZenodoError, requests.exceptions.RequestException):
+            state = None
+        hint = {"published": " It is published: use new-version for a corrected certificate.",
+                "missing": " The record does not exist (any more): replace `report` with a placeholder to reserve "
+                           "a new DOI."}.get(state, "")
+        out(f"codecheck.yml already has a record: {report} ({zenodo.draft_url(rid)}), nothing reserved.{hint}")
         return None
     if report and not is_placeholder(report):
         raise ZenodoError(f"`report` in {config} is already set ({report}) and not a Zenodo record: remove it or "
@@ -425,13 +512,7 @@ def cmd_reserve(zenodo: Zenodo, config: Path, yes: bool = False, out=print) -> O
     metadata, _ = build_metadata(conf)
     rid = zenodo.create_draft(metadata)["id"]
     doi = zenodo.reserve_doi(rid)
-    out(f"Reserved DOI {doi} for the draft {zenodo.draft_url(rid)}.")  # shown before anything else can fail
-    try:
-        write_config_fields(config, {"report": f"https://doi.org/{doi}"})
-    except Exception as e:
-        raise ZenodoError(f"Could not write the DOI to {config} ({type(e).__name__}: {e}): set "
-                          f"`report: https://doi.org/{doi}` yourself, do not reserve again")
-    out(f"Wrote it to `report` in {config}.")
+    write_report(zenodo, config, rid, doi, out)
     try:
         if zenodo.request_review(rid):
             out(f"Requested the inclusion in the community '{zenodo.community}' (not submitted).")
@@ -497,7 +578,8 @@ def cmd_all(zenodo: Zenodo, config: Path, include_config=False, include_outputs=
         raise ZenodoError("--include-outputs needs --outputs-license with the license ID of the outputs (e.g. mit)")
     conf = load_config(config)
     rid = require_record(conf, zenodo.sandbox)
-    zenodo.editable_draft(rid)
+    draft = zenodo.editable_draft(rid)
+    first_version = ((draft.get("versions") or {}).get("index") or 1) == 1
     existing = zenodo.file_keys(rid)
     if include_outputs or extra:
         out("Note: further files must be created by the codechecker or published with the explicit consent of the "
@@ -517,11 +599,16 @@ def cmd_all(zenodo: Zenodo, config: Path, include_config=False, include_outputs=
         out(f"Warning: the draft also has files from earlier uploads: {', '.join(others)} "
             f"(delete them on Zenodo if they are outdated)")
     zenodo.update_draft(rid, metadata, default_preview=CERTIFICATE)
-    in_community = zenodo.request_review(rid)  # again: for drafts reserved before the request was possible
-    out(f"Updated the draft {zenodo.draft_url(rid)}: {len(files)} file(s), metadata"
-        f"{f', community request ({zenodo.community})' if in_community else ''}.")
-    if not in_community:
-        out(f"Warning: the community '{zenodo.community}' does not exist on {zenodo.url}: no community request.")
+    if first_version:
+        in_community = zenodo.request_review(rid)  # again: for drafts reserved before the request was possible
+        out(f"Updated the draft {zenodo.draft_url(rid)}: {len(files)} file(s), metadata"
+            f"{f', community request ({zenodo.community})' if in_community else ''}.")
+        if not in_community:
+            out(f"Warning: the community '{zenodo.community}' does not exist on {zenodo.url}: no community request.")
+    else:  # new versions belong to the communities of the record family, a request is not possible
+        out(f"Updated the draft {zenodo.draft_url(rid)} (new version): {len(files)} file(s), metadata.")
+        if not in_a_community(draft):
+            out("Warning: the record is not in a community: request the inclusion on Zenodo.")
     out("Check the record on Zenodo (metadata, files, preview), then publish it yourself.")
 
 
@@ -554,7 +641,7 @@ def cmd_status(zenodo: Zenodo, config: Path, out=print):
     published = draft is None or bool(draft.get("is_published"))
     state = ("published" + (", with changes not yet published" if draft else "")) if published else \
         "draft (not published)"
-    doi = ((record.get("pids") or {}).get("doi") or {}).get("identifier")
+    doi = record_doi(record)
     out(f"Record {rid}: {state}, DOI {doi}, {zenodo.draft_url(rid)}")
     out(f"Title: {(record.get('metadata') or {}).get('title')}")
     if draft:
@@ -574,7 +661,7 @@ def cmd_status(zenodo: Zenodo, config: Path, out=print):
 def main(argv=None, out=print) -> int:
     parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0],
                                      formatter_class=argparse.RawDescriptionHelpFormatter, epilog=__doc__)
-    parser.add_argument("command", choices=["reserve", "all", "metadata", "status"])
+    parser.add_argument("command", choices=["reserve", "all", "metadata", "status", "new-version"])
     parser.add_argument("--sandbox", action="store_true", help="use the Zenodo sandbox (test first!)")
     parser.add_argument("--config", default=os.path.join("..", "codecheck.yml"), help="default: ../codecheck.yml")
     parser.add_argument("--yes", action="store_true", help="do not ask before reserving a DOI")
@@ -601,6 +688,8 @@ def main(argv=None, out=print) -> int:
         zenodo = Zenodo(sandbox=args.sandbox, community=args.community)
         if args.command == "reserve":
             cmd_reserve(zenodo, config, args.yes, out=out)
+        elif args.command == "new-version":
+            cmd_new_version(zenodo, config, args.yes, out=out)
         elif args.command == "all":
             cmd_all(zenodo, config, args.include_config, args.include_outputs, args.outputs_license, args.file,
                     args.force, out=out)

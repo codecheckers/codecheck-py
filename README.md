@@ -161,6 +161,10 @@ DOIs `10.5072/zenodo.N`), with a separate account and token.
    `python zenodo_deposit.py metadata --dry-run` prints the metadata without contacting Zenodo. `status` shows the
    account of the token, the state of the record, its files and the community request.
 4. Check the draft on Zenodo (link in the output), then publish it there. Repeat steps 2 and 3 without `--sandbox`.
+5. To correct a published certificate, create a new version: `python zenodo_deposit.py new-version` makes a draft of
+   the next version with its own DOI and writes that DOI to `report` (the published version keeps its DOI, the new
+   version stays in the community). Update the certificate, then continue with step 3; the files of the earlier
+   version are not copied.
 
 In a clone of this repository, `make zenodo-reserve-sandbox`, `make zenodo-sandbox` (rebuilds the PDF first) and
 `make zenodo-status-sandbox` do the same (`make help` lists all targets, `ARGS=...` passes options).

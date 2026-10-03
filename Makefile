@@ -6,7 +6,7 @@ TEMPLATE := .codecheck
 ZENODO := cd $(TEMPLATE) && python zenodo_deposit.py
 
 .PHONY: help test pdf zenodo-metadata zenodo-reserve-sandbox zenodo-sandbox zenodo-status-sandbox \
-	zenodo-reserve zenodo zenodo-status
+	zenodo-new-version-sandbox zenodo-reserve zenodo zenodo-status zenodo-new-version
 
 help:
 	@echo "make test                    run the test suite"
@@ -15,7 +15,8 @@ help:
 	@echo "make zenodo-reserve-sandbox  create a draft on the Zenodo sandbox, reserve its DOI -> codecheck.yml"
 	@echo "make zenodo-sandbox          rebuild the PDF, upload it, set the metadata (sandbox)"
 	@echo "make zenodo-status-sandbox   show the record (sandbox)"
-	@echo "make zenodo-reserve / zenodo / zenodo-status   the same on zenodo.org"
+	@echo "make zenodo-new-version-sandbox  after publishing: new version (e.g. a correction) with a new DOI"
+	@echo "make zenodo-reserve / zenodo / zenodo-status / zenodo-new-version   the same on zenodo.org"
 	@echo "The record is never published: check it on Zenodo and publish it yourself."
 
 test:
@@ -36,6 +37,9 @@ zenodo-sandbox: pdf
 zenodo-status-sandbox:
 	$(ZENODO) status --sandbox $(ARGS)
 
+zenodo-new-version-sandbox:
+	$(ZENODO) new-version --sandbox $(ARGS)
+
 zenodo-reserve:
 	$(ZENODO) reserve $(ARGS)
 
@@ -44,3 +48,6 @@ zenodo: pdf
 
 zenodo-status:
 	$(ZENODO) status $(ARGS)
+
+zenodo-new-version:
+	$(ZENODO) new-version $(ARGS)

@@ -172,6 +172,7 @@ class FakeZenodo:
                       'custom_fields': {'x': 1}, 'pids': {}, 'files': {'enabled': True}}
         self.community = community
         self.put = self.review = None
+        self.version = None  # the draft of a new version (record 124), once created
 
     def __call__(self, method, url, headers=None, json=None, data=None, timeout=None):
         path = url.split('/api', 1)[1]
@@ -181,6 +182,13 @@ class FakeZenodo:
         if method == 'POST' and path == '/records':
             self.draft['metadata'] = json['metadata']
             return self.response(201, self.draft)
+        if path == '/records/123/versions' and method == 'POST':  # an existing new version is returned again
+            self.version = self.version or {'id': '124', 'is_published': False, 'versions': {'index': 2},
+                                            'pids': {}, 'parent': {'communities': {}}}
+            return self.response(201, self.version)
+        if path == '/records/124/draft/pids/doi':
+            self.version['pids'] = {'doi': {'identifier': '10.5072/zenodo.124'}}
+            return self.response(201, self.version)
         if path == '/records/123/draft/pids/doi':
             self.draft['pids'] = {'doi': {'identifier': '10.5072/zenodo.123', 'provider': 'datacite'}}
             return self.response(201, self.draft)
@@ -294,7 +302,8 @@ def test_reserve(fake, zenodo, workspace):
     # again: the record exists, nothing is created
     fake.calls.clear()
     assert zd.cmd_reserve(zenodo, workspace, yes=True, out=lines.append) is None
-    assert fake.calls == [] and 'already has a record' in lines[-1]
+    assert fake.calls == [('GET', '/records/123/draft')] and 'already has a record' in lines[-1]  # nothing created
+    assert 'new-version' not in lines[-1]  # not published
 
 
 def test_reserve_asks_first(fake, zenodo, workspace, monkeypatch):
@@ -629,3 +638,106 @@ def test_codechecker_with_wrong_structure():
     assert 'no codechecker with a name' not in warnings
     named = zd.build_metadata({**CONF, 'codechecker': [{'ORCID': '0123-4567-8910-1112'}, {'name': 'A'}]})[1]
     assert "ORCID '0123-4567-8910-1112' of Codechecker 1 is not valid" in ' '.join(named)
+
+
+@pytest.fixture
+def published(fake, reserved):
+    """Record 123 is published (in a community)."""
+    fake.draft['is_published'] = True
+    fake.draft['parent'] = {'communities': {'ids': ['uuid-1']}}
+    fake.calls.clear()
+    return reserved
+
+
+def test_new_version(fake, zenodo, published):
+    lines = []
+    assert zd.cmd_new_version(zenodo, published, yes=True, out=lines.append) == '10.5072/zenodo.124'
+    assert fake.calls == [('GET', '/records/123/draft'), ('POST', '/records/123/versions'),
+                          ('POST', '/records/124/draft/pids/doi')]  # no community request
+    assert 'report: https://doi.org/10.5072/zenodo.124\n' in published.read_text()
+    assert lines == ['Reserved DOI 10.5072/zenodo.124 for the draft https://sandbox.zenodo.org/uploads/124.',
+                     f'Wrote it to `report` in {published}.',
+                     'New version 2 of record 123. Next: update the certificate (e.g. check_time, notes), rebuild it '
+                     '(sh notebook_to_pdf.sh) and upload it (all).']
+
+
+def test_new_version_returns_the_existing_draft(fake, zenodo, published):
+    """As Zenodo does: asking again returns the unpublished new version with its DOI, no further DOI."""
+    zd.cmd_new_version(zenodo, published, yes=True, out=quiet)
+    published.write_text(published.read_text().replace('zenodo.124', 'zenodo.123'))  # e.g. writing had failed
+    fake.calls.clear()
+    lines = []
+    assert zd.cmd_new_version(zenodo, published, yes=True, out=lines.append) == '10.5072/zenodo.124'
+    assert ('POST', '/records/124/draft/pids/doi') not in fake.calls
+    assert lines[0] == ('The new version exists already, DOI 10.5072/zenodo.124 for the draft '
+                        'https://sandbox.zenodo.org/uploads/124.')
+
+
+def test_new_version_asks_first(fake, zenodo, published, monkeypatch):
+    monkeypatch.setattr('builtins.input', lambda prompt: 'n')
+    lines = []
+    assert zd.cmd_new_version(zenodo, published, out=lines.append) is None
+    assert lines == ['No new version.'] and ('POST', '/records/123/versions') not in fake.calls
+
+
+def test_new_version_warns_without_community(fake, zenodo, published):
+    fake.draft['parent'] = {'communities': {}}
+    lines = []
+    zd.cmd_new_version(zenodo, published, yes=True, out=lines.append)
+    assert lines[-1].startswith('Warning: the published record is not in a community')
+
+
+def test_new_version_of_an_unpublished_draft(fake, zenodo, reserved):
+    lines = []
+    assert zd.cmd_new_version(zenodo, reserved, yes=True, out=lines.append) is None
+    assert 'is not published yet' in lines[0]
+    reserved.write_text(CONFIG_TEXT)  # no record in `report`
+    with pytest.raises(zd.ZenodoError, match='reserve one first'):
+        zd.cmd_new_version(zenodo, reserved, yes=True, out=quiet)
+
+
+def test_new_version_of_a_missing_record(fake, zenodo, reserved, monkeypatch):
+    original = fake.__call__
+    monkeypatch.setattr(zd.requests, 'request', lambda method, url, **kwargs: FakeZenodo.response(
+        404, {'message': 'not found'}) if url.endswith('/records/123/draft') or url.endswith('/records/123')
+        else original(method, url, **kwargs))
+    with pytest.raises(zd.ZenodoError, match='Record 123 .* does not exist'):
+        zd.cmd_new_version(zenodo, reserved, yes=True, out=quiet)
+    lines = []
+    zd.cmd_reserve(zenodo, reserved, yes=True, out=lines.append)
+    assert 'does not exist (any more)' in lines[0]
+
+
+def test_all_on_a_new_version(fake, zenodo, published, monkeypatch):
+    zd.cmd_new_version(zenodo, published, yes=True, out=quiet)
+    build_certificate(published)
+    fake.draft = fake.version  # the draft endpoints of the fake (record 123) answer for the new version 124
+    monkeypatch.setattr(zd.requests, 'request',
+                        lambda method, url, **kwargs: fake(method, url.replace('/records/124/', '/records/123/'),
+                                                           **kwargs))
+    fake.calls.clear()
+    lines = []
+    zd.cmd_all(zenodo, published, out=lines.append)
+    assert not any('review' in path or 'communities' in path for _, path in fake.calls)
+    assert any('(new version)' in line for line in lines)
+    assert 'Warning: the record is not in a community: request the inclusion on Zenodo.' in lines
+
+
+def test_reserve_hint_does_not_fail(fake, zenodo, reserved, monkeypatch):
+    monkeypatch.setattr(zd.Zenodo, 'record_state', MagicMock(side_effect=zd.ZenodoError('HTTP 401', 401)))
+    lines = []
+    assert zd.cmd_reserve(zenodo, reserved, yes=True, out=lines.append) is None
+    assert lines[0].endswith('nothing reserved.')
+
+
+def test_reserve_on_published_record_points_to_new_version(fake, zenodo, published):
+    lines = []
+    assert zd.cmd_reserve(zenodo, published, yes=True, out=lines.append) is None
+    assert 'use new-version for a corrected certificate' in lines[0]
+
+
+def test_main_new_version(fake, published):
+    (published.parent / '.env').write_text('ZENODO_API_TOKEN_SANDBOX=secret\n')
+    lines = []
+    assert zd.main(['new-version', '--sandbox', '--yes'], out=lines.append) == 0
+    assert 'Reserved DOI 10.5072/zenodo.124' in lines[0]
