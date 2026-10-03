@@ -21,7 +21,7 @@ from pathlib import Path
 import doi_metadata
 from manifest import ManifestProcessor, existing_file, find_outputs_dir, manifest_file_paths, output_path
 from register import certificate_candidates, fetch_register_issues, first_author_surname, markdown_row
-from validation import CodecheckValidator
+from validation import CodecheckValidator, online_checks
 from validation_config import TEMPLATE_DIRS, as_list
 
 
@@ -75,7 +75,7 @@ class Codecheck:
     """
 
     def __init__(self, manifest_file=op.join("..", "codecheck.yml"),
-                 validate=False, strict=False, check_orcid_online=False):
+                 validate=False, strict=False, check_orcid_online=None, *, online=None, check_register=None):
         """
         Create new `Codecheck` object with optional validation.
 
@@ -89,18 +89,21 @@ class Codecheck:
         strict : bool, optional
             If True, raises error on validation failure (when validate=True).
             If False, only warnings are issued. Defaults to False.
-        check_orcid_online : bool, optional
-            Whether the validation (when validate=True) checks the ORCIDs at orcid.org. Defaults to False.
+        online : bool, str or iterable of str, optional
+            The online checks of the validation (when validate=True), see `CodecheckValidator.validate_all()`.
+        check_orcid_online, check_register : bool, optional
+            Deprecated, use `online`.
         """
         self.manifest_file = manifest_file
         self.validator = CodecheckValidator(manifest_file)
         self.manifest_processor = None
 
         # Optionally validate on initialization
+        checks = online_checks(online, check_register=check_register, check_orcid_online=check_orcid_online)
         if validate:
             passed, issues = self.validator.validate_all(
                 check_manifest=False,  # Don't check files until explicitly requested
-                check_orcid_online=check_orcid_online,
+                online=checks,
                 strict=strict
             )
             if not passed and strict:
@@ -518,7 +521,8 @@ This certificate confirms that the codechecker could independently reproduce the
             )
         return Markdown("\n".join(full_text))
 
-    def validate(self, check_manifest=True, check_register=True, strict=False, check_orcid_online=False):
+    def validate(self, check_manifest=True, check_register=None, strict=False, check_orcid_online=None, *,
+                 online=None):
         """
         Run validation checks on the codecheck.yml file.
 
@@ -526,12 +530,12 @@ This certificate confirms that the codechecker could independently reproduce the
         ----------
         check_manifest : bool, optional
             Whether to check if manifest files exist in outputs/. Defaults to True.
-        check_register : bool, optional
-            Whether to check for GitHub register issue. Defaults to True.
         strict : bool, optional
             If True, warnings are treated as failures. Defaults to False.
-        check_orcid_online : bool, optional
-            Whether to check that the ORCIDs exist and match the names at orcid.org. Defaults to False.
+        online : bool, str or iterable of str, optional
+            The checks that use the network, see `CodecheckValidator.validate_all()`; e.g. True for all, False for none.
+        check_register, check_orcid_online : bool, optional
+            Deprecated, use `online`.
 
         Returns
         -------
@@ -540,9 +544,8 @@ This certificate confirms that the codechecker could independently reproduce the
         """
         return self.validator.validate_all(
             check_manifest=check_manifest,
-            check_register=check_register,
             strict=strict,
-            check_orcid_online=check_orcid_online
+            online=online_checks(online, check_register=check_register, check_orcid_online=check_orcid_online)
         )
 
     def _paper_doi(self):

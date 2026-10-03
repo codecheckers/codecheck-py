@@ -2,10 +2,12 @@
 Tests for the error branches of the validator (wrong types, empty sections, report formatting)
 """
 
+from unittest.mock import patch
+
 import pytest
 import yaml
 
-from validation import CodecheckValidator, ValidationIssue
+from validation import CodecheckValidator, ValidationIssue, online_checks
 
 
 def make(tmp_path, config):
@@ -208,7 +210,7 @@ def test_report_formats(tmp_path):
 def test_validate_all_stops_after_syntax_error(tmp_path):
     path = tmp_path / 'codecheck.yml'
     path.write_text('a: [unclosed')
-    passed, found = CodecheckValidator(str(path)).validate_all(check_register=False)
+    passed, found = CodecheckValidator(str(path)).validate_all(online=False)
     assert passed is False and len(found) == 1
 
 
@@ -229,10 +231,10 @@ def test_validate_all_strict_fails_on_warnings(tmp_path):
     (tmp_path / '.codecheck' / 'outputs' / 'a.csv').write_text('a\n1\n')
     path = tmp_path / 'codecheck.yml'
     path.write_text(yaml.dump(config))
-    passed, found = CodecheckValidator(str(path)).validate_all(check_register=False, strict=False)
+    passed, found = CodecheckValidator(str(path)).validate_all(online=False, strict=False)
     assert passed is True, [str(i) for i in found if i.level == 'error']
     assert ('warning', 'codechecker.ORCID') in {(i.level, i.field) for i in found}
-    passed, _ = CodecheckValidator(str(path)).validate_all(check_register=False, strict=True)
+    passed, _ = CodecheckValidator(str(path)).validate_all(online=False, strict=True)
     assert passed is False
 
 
@@ -275,3 +277,55 @@ def test_single_author_mapping_is_rejected_consistently(tmp_path):
     validator.validate_paper_structure()
     validator.validate_orcids()
     assert [i.message for i in validator.issues] == ['Authors must be a list, got dict']
+
+
+@pytest.mark.parametrize('online,expected', [
+    (None, {'register'}), (True, {'register', 'orcid'}), (False, set()), ('orcid', {'orcid'}),
+    (['register', 'orcid'], {'register', 'orcid'}), ((), set()), (1, {'register', 'orcid'}), (0, set())])
+def test_online_checks(online, expected):
+    assert online_checks(online) == expected
+
+
+def test_online_checks_unknown_before_any_check(tmp_path):
+    validator = make(tmp_path, {'certificate': '2026-001'})
+    with pytest.raises(ValueError, match=r"Unknown online check\(s\) \['github'\]"):
+        validator.validate_all(online=['github'])
+    assert validator.issues == []  # nothing was checked
+
+
+@pytest.mark.parametrize('kwargs,expected', [
+    ({'check_register': False}, set()), ({'check_orcid_online': True}, {'register', 'orcid'}),
+    ({'check_register': False, 'check_orcid_online': True}, {'orcid'})])
+def test_online_checks_deprecated_flags(kwargs, expected):
+    with pytest.warns(DeprecationWarning, match='use online='):
+        assert online_checks(**kwargs) == expected
+
+
+def test_online_and_deprecated_flags_cannot_be_mixed():
+    with pytest.raises(TypeError, match='either online=... or the deprecated check_orcid_online'):
+        online_checks(False, check_orcid_online=True)
+
+
+def test_deprecated_positional_and_keyword_calls_warn_at_the_caller(tmp_path):
+    from codecheck import Codecheck
+    path = tmp_path / 'codecheck.yml'
+    path.write_text('certificate: 2026-001\n')
+    with patch.object(CodecheckValidator, 'validate_register_issue') as register:
+        with pytest.warns(DeprecationWarning) as record:
+            CodecheckValidator(str(path)).validate_all(False, False)  # the old positional check_register
+            Codecheck(str(path)).validate(False, check_register=False)
+            Codecheck(str(path), True, False, check_register=False)
+        register.assert_not_called()
+    assert [w.filename for w in record] == [__file__] * 3  # shown in notebooks: blamed on the caller
+
+
+def test_codecheck_validate_online(tmp_path):
+    from codecheck import Codecheck
+    path = tmp_path / 'codecheck.yml'
+    path.write_text('certificate: 2026-001\n')
+    with patch.object(CodecheckValidator, 'validate_register_issue') as register, \
+            patch.object(CodecheckValidator, 'validate_orcids_online') as orcid:
+        Codecheck(str(path)).validate(online='orcid')
+        Codecheck(str(path), validate=True, online=False)
+    register.assert_not_called()
+    orcid.assert_called_once()

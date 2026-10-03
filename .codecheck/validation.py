@@ -4,6 +4,7 @@ https://codecheck.org.uk
 """
 import yaml
 import re
+import warnings
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Any
 from dataclasses import dataclass
@@ -23,6 +24,8 @@ from validation_config import (
     is_placeholder_check_time,
     people,
     ORCID_FORMAT,
+    ONLINE_CHECKS,
+    DEFAULT_ONLINE_CHECKS,
     DOI_FORMAT,
     ISO_DATE_FORMAT,
     PAPER_FIELDS,
@@ -30,6 +33,37 @@ from validation_config import (
     CODECHECKER_FIELDS,
     MANIFEST_ENTRY_FIELDS,
 )
+
+
+def online_checks(online=None, check_register: Optional[bool] = None,
+                  check_orcid_online: Optional[bool] = None) -> frozenset:
+    """
+    The online checks to run (names of `ONLINE_CHECKS`): `online` is None (`DEFAULT_ONLINE_CHECKS`), a truth value (all
+    or none), a name or names. The deprecated flags `check_register` and `check_orcid_online` switch single checks on
+    or off; they cannot be combined with `online`. Call this directly in each public function that takes these
+    parameters, so that the DeprecationWarning points at the caller's code (and is shown in notebooks).
+    """
+    deprecated = [(flag, param, name) for flag, param, name in ((check_register, 'check_register', 'register'),
+                                                                 (check_orcid_online, 'check_orcid_online', 'orcid'))
+                  if flag is not None]
+    if online is not None and deprecated:
+        raise TypeError(f"use either online=... or the deprecated {deprecated[0][1]}=..., not both")
+    if online is None:
+        checks = set(DEFAULT_ONLINE_CHECKS)
+    elif isinstance(online, str):
+        checks = {online}
+    elif isinstance(online, (frozenset, set, list, tuple)):
+        checks = set(online)
+    else:  # True/False, also 1/0 and other truth values
+        checks = set(ONLINE_CHECKS) if online else set()
+    unknown = checks - set(ONLINE_CHECKS)
+    if unknown:
+        raise ValueError(f"Unknown online check(s) {sorted(unknown)}, choose from {list(ONLINE_CHECKS)}")
+    for flag, param, name in deprecated:
+        warnings.warn(f"{param} is deprecated, use online=... (e.g. online=True or online=False)",
+                      DeprecationWarning, stacklevel=3)
+        (checks.add if flag else checks.discard)(name)
+    return frozenset(checks)
 
 
 @dataclass
@@ -776,9 +810,11 @@ class CodecheckValidator:
 
     def validate_all(self,
                      check_manifest: bool = True,
-                     check_register: bool = True,
+                     check_register: Optional[bool] = None,
                      strict: bool = False,
-                     check_orcid_online: bool = False) -> Tuple[bool, List[ValidationIssue]]:
+                     check_orcid_online: Optional[bool] = None,
+                     *,
+                     online=None) -> Tuple[bool, List[ValidationIssue]]:
         """
         Run all validation checks.
 
@@ -786,18 +822,21 @@ class CodecheckValidator:
         ----------
         check_manifest : bool, optional
             Whether to check if manifest files exist. Defaults to True.
-        check_register : bool, optional
-            Whether to check for GitHub register issue. Defaults to True.
         strict : bool, optional
             If True, warnings are treated as failures. Defaults to False.
-        check_orcid_online : bool, optional
-            Whether to check that the ORCIDs exist and match the names at orcid.org. Defaults to False.
+        online : bool, str or iterable of str, optional
+            The checks that use the network: `'register'` (issue in the CODECHECK register on GitHub) and `'orcid'`
+            (ORCIDs exist and match the names at orcid.org); True for all, False for none. Defaults to
+            `validation_config.DEFAULT_ONLINE_CHECKS`.
+        check_register, check_orcid_online : bool, optional
+            Deprecated, use `online`.
 
         Returns
         -------
         tuple
             (passed: bool, issues: List[ValidationIssue])
         """
+        checks = online_checks(online, check_register=check_register, check_orcid_online=check_orcid_online)
         self.issues = []
 
         # 1. Syntax check (must pass to continue)
@@ -822,12 +861,10 @@ class CodecheckValidator:
         if check_manifest:
             self.validate_manifest_files()
 
-        # 6. Register issue check
-        if check_register:
+        # 6. Online checks: register issue, ORCID records
+        if 'register' in checks:
             self.validate_register_issue()
-
-        # 7. ORCID records
-        if check_orcid_online:
+        if 'orcid' in checks:
             self.validate_orcids_online()
 
         # Determine pass/fail

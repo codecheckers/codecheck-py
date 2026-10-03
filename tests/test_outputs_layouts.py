@@ -105,7 +105,7 @@ def test_codecheck_class(layout):
     assert 'Total size**: 12 bytes' in check.manifest_summary().data
     assert '`a.csv` | table | 12' in check.files().data
     assert 'Lines | 3' in check.manifest_files().data  # file info is read from outputs/ (cwd is the layout dir)
-    passed, issues = check.validate(check_register=False)
+    passed, issues = check.validate(online=False)
     assert not [i for i in issues if i.field == 'manifest' and i.level == 'error' and 'outputs' in i.message]
 
 

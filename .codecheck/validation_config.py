@@ -37,6 +37,10 @@ PLACEHOLDER_PATTERNS = {
     ]
 }
 
+# Checks of `validate_all()` that use the network: the CODECHECK register on GitHub, the ORCID records
+ONLINE_CHECKS = ('register', 'orcid')
+DEFAULT_ONLINE_CHECKS = ('register',)
+
 # Expected formats for validation
 CERTIFICATE_ID = r'\d{4}-\d{3}'  # YYYY-NNN (e.g., 2023-001)
 CERTIFICATE_FORMAT = rf'^{CERTIFICATE_ID}$'

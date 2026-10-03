@@ -273,7 +273,7 @@ def test_validate_all_includes_register_check(mock_get, fixtures_dir):
     mock_get.return_value = mock_response
 
     validator = CodecheckValidator(fixtures_dir / 'valid_codecheck.yml')
-    passed, issues = validator.validate_all(check_manifest=False, check_register=True)
+    passed, issues = validator.validate_all(check_manifest=False, online="register")
 
     # Verify that the API was called
     mock_get.assert_called_once()
@@ -284,7 +284,7 @@ def test_validate_all_includes_register_check(mock_get, fixtures_dir):
 def test_validate_all_skip_register_check(mock_get, fixtures_dir):
     """Test that register check can be disabled"""
     validator = CodecheckValidator(fixtures_dir / 'valid_codecheck.yml')
-    passed, issues = validator.validate_all(check_manifest=False, check_register=False)
+    passed, issues = validator.validate_all(check_manifest=False, online=False)
 
     # Verify that the API was NOT called
     mock_get.assert_not_called()

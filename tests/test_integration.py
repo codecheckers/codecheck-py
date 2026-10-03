@@ -101,7 +101,7 @@ def test_validate_method(fixtures_dir):
         validate=False
     )
 
-    passed, issues = check.validate(check_manifest=False, check_register=False, strict=False)
+    passed, issues = check.validate(check_manifest=False, online=False, strict=False)
     errors = [i for i in issues if i.level == 'error']
     assert len(errors) == 0
 
@@ -113,7 +113,7 @@ def test_validation_report_method(fixtures_dir):
         validate=False
     )
 
-    check.validate(check_manifest=False, check_register=False, strict=False)
+    check.validate(check_manifest=False, online=False, strict=False)
     report = check.validation_report(markdown=False)
 
     assert isinstance(report, str)

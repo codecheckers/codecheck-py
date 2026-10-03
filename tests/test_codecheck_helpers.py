@@ -61,7 +61,7 @@ def test_report_parts(workspace):
 
 def test_validate_and_report(workspace):
     check = Codecheck()
-    passed, found = check.validate(check_register=False)
+    passed, found = check.validate(online=False)
     assert passed is True and not [i for i in found if i.level == 'error']
     assert isinstance(check.validation_report(), cc.Markdown)
     assert isinstance(check.validation_report(markdown=False), str)

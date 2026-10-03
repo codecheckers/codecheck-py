@@ -195,14 +195,14 @@ def test_codecheck_init_can_check_orcids_online(tmp_path):
     config = tmp_path / 'codecheck.yml'
     config.write_text(yaml.dump(CONFIG))
     with patch('orcid_records.requests.get', return_value=api_response(404)), pytest.raises(ValueError):
-        Codecheck(str(config), validate=True, strict=True, check_orcid_online=True)
+        Codecheck(str(config), validate=True, strict=True, online='orcid')
 
 
 def test_validate_all_checks_orcids_online_only_when_asked(tmp_path):
     config = tmp_path / 'codecheck.yml'
     config.write_text(yaml.dump(CONFIG))
     with patch('orcid_records.requests.get', side_effect=requests.exceptions.ConnectionError('offline')) as get:
-        CodecheckValidator(str(config)).validate_all(check_manifest=False, check_register=False)
+        CodecheckValidator(str(config)).validate_all(check_manifest=False, online=False)
         get.assert_not_called()
-        Codecheck(str(config)).validate(check_manifest=False, check_register=False, check_orcid_online=True)
+        Codecheck(str(config)).validate(check_manifest=False, online=['orcid'])
         assert get.call_count == 1

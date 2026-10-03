@@ -265,7 +265,7 @@ def test_notebook_validation_integration(pdf_workspace):
         assert 'manifest' in check.conf
 
         # Test validation
-        passed, issues = check.validate(check_manifest=True, check_register=False, strict=False)
+        passed, issues = check.validate(check_manifest=True, online=False, strict=False)
         assert isinstance(passed, bool)
         assert isinstance(issues, list)
 

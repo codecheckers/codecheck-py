@@ -261,9 +261,10 @@ check = Codecheck(validate=True, strict=False)
 check = Codecheck()
 passed, issues = check.validate(
     check_manifest=True,
-    check_register=True,  # Check GitHub register (default: True)
     strict=False,
-    check_orcid_online=False  # Check ORCIDs at orcid.org (default: False)
+    # checks that use the network: "register" (GitHub register issue, default) and "orcid" (ORCIDs at orcid.org);
+    # online=True for all, online=False for none, or e.g. online=["register"]
+    online=True,
 )
 check.validation_report()
 ```
@@ -323,7 +324,7 @@ The validation system performs the following checks on your `codecheck.yml` file
 - ✓ Check digit (last character, ISO 7064 mod 11-2): catches typos and placeholders such as `0123-4567-8910-1112`
 - ✓ Validates for all authors
 - ✓ Validates for codechecker(s)
-- ✓ Online (opt-in, `check_orcid_online=True`): one request per ORCID to the public API at
+- ✓ Online (opt-in, `online="orcid"` or `online=True`): one request per ORCID to the public API at
   [pub.orcid.org](https://pub.orcid.org), no token needed
   - **ERROR** if the ORCID does not exist or is locked/deactivated
   - **WARNING** if the name in `codecheck.yml` does not match the ORCID record (case, diacritics, punctuation and
@@ -331,7 +332,7 @@ The validation system performs the following checks on your `codecheck.yml` file
     name)
   - **INFO** if the ORCID record has no public name
   - Network errors only warn, the remaining ORCIDs are then skipped
-- ✓ Also available as `Codecheck(validate=True, check_orcid_online=True)`
+- ✓ Also available as `Codecheck(validate=True, online=["register", "orcid"])`
 
 #### 7. **Date/Time Format Validation**
 
@@ -377,7 +378,7 @@ The validation system performs the following checks on your `codecheck.yml` file
 - **WARNING** if issue is unassigned
 - **INFO** if the certificate ID is still a placeholder (`2026-NNN`, ...): lists the register issues with the surname of
   the first author in the title and their certificate IDs (never written to `codecheck.yml`)
-- ✓ Can be disabled with `check_register=False`
+- ✓ Can be disabled with `online=False` (no online checks) or `online="orcid"` (only the ORCID check)
 - ✓ Gracefully handles network errors (warns but doesn't fail)
 - ✓ Uses a `GITHUB_TOKEN` or `GITHUB_PAT` environment variable if set (the GitHub API allows 60 requests per hour without
   a token)
@@ -419,18 +420,17 @@ table (`check.find_certificate_id(name="Surname")` searches for another name).
   - *Suggestion*: Add ORCID for complete author information
 ```
 
-### Disabling Register Checks
+### Disabling Online Checks
 
-If you need to validate without checking the GitHub register (e.g., for offline work or testing):
+If you need to validate without network access (e.g., for offline work or testing), switch off the online checks:
 
 ```python
-# Disable register check
-passed, issues = check.validate(
-    check_manifest=True,
-    check_register=False,  # Skip GitHub API call
-    strict=False
-)
+passed, issues = check.validate(online=False)        # no online checks
+passed, issues = check.validate(online="orcid")      # only the ORCID check, not the register
+passed, issues = check.validate(online=True)         # all online checks (register and ORCID)
 ```
+
+The former parameters `check_register` and `check_orcid_online` still work but are deprecated.
 
 ## Testing
 

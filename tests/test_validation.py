@@ -175,7 +175,7 @@ def test_manifest_structure_validation(fixtures_dir):
 def test_validate_all_valid_file(fixtures_dir):
     """Test complete validation of valid file"""
     validator = CodecheckValidator(fixtures_dir / 'valid_codecheck.yml')
-    passed, issues = validator.validate_all(check_manifest=False, check_register=False, strict=False)
+    passed, issues = validator.validate_all(check_manifest=False, online=False, strict=False)
 
     # Should pass with possible warnings but no errors
     errors = [i for i in issues if i.level == 'error']
@@ -185,7 +185,7 @@ def test_validate_all_valid_file(fixtures_dir):
 def test_validate_all_invalid_file(fixtures_dir):
     """Test complete validation of invalid file"""
     validator = CodecheckValidator(fixtures_dir / 'missing_fields.yml')
-    passed, issues = validator.validate_all(check_manifest=False, check_register=False, strict=False)
+    passed, issues = validator.validate_all(check_manifest=False, online=False, strict=False)
 
     # Should fail due to errors
     assert passed == False
@@ -196,7 +196,7 @@ def test_validate_all_invalid_file(fixtures_dir):
 def test_validate_all_strict_mode(fixtures_dir):
     """Test strict mode treats warnings as failures"""
     validator = CodecheckValidator(fixtures_dir / 'placeholder_values.yml')
-    passed, issues = validator.validate_all(check_manifest=False, check_register=False, strict=True)
+    passed, issues = validator.validate_all(check_manifest=False, online=False, strict=True)
 
     # Should fail in strict mode due to placeholders (warnings)
     assert passed == False
