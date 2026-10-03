@@ -143,7 +143,8 @@ def test_build_metadata_placeholders_and_variants():
             'repository': ['https://doi.org/10.5281/zenodo.1', 'https://github.com/example/repo']}
     metadata, warnings = zd.build_metadata(conf, outputs_license='mit')
     assert warnings[0] == "certificate '2026-NNN' is a placeholder"
-    assert warnings[1] == "ORCID '0123-4567-8910-1112' of Jane Doe is not valid (plain 0000-0000-0000-0000), it is left out"
+    assert warnings[1] == ("ORCID '0123-4567-8910-1112' of Jane Doe is not valid (plain 0000-0000-0000-0000), it is "
+                           "left out")
     assert warnings[2].startswith("check_time 'YYYY-MM-DDTHH:MM:SS' is not a date: the publication date is today")
     assert warnings[3:] == ['no summary', 'paper.reference is not a DOI or URL']
     assert metadata['creators'] == [{'person_or_org': {'type': 'personal', 'family_name': 'Doe',
@@ -620,3 +621,11 @@ def test_consent_note_for_further_files(fake, zenodo, certified):
     assert not any('consent' in line for line in lines)
     zd.cmd_all(zenodo, certified, include_outputs=True, outputs_license='mit', out=lines.append)
     assert any('explicit consent of the copyright holder' in line for line in lines)
+
+
+def test_codechecker_with_wrong_structure():
+    warnings = zd.build_metadata({**CONF, 'codechecker': 'Jane Doe'})[1]
+    assert 'codechecker must be a mapping or a list of mappings with name and ORCID' in warnings
+    assert 'no codechecker with a name' not in warnings
+    named = zd.build_metadata({**CONF, 'codechecker': [{'ORCID': '0123-4567-8910-1112'}, {'name': 'A'}]})[1]
+    assert "ORCID '0123-4567-8910-1112' of Codechecker 1 is not valid" in ' '.join(named)

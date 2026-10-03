@@ -14,7 +14,6 @@ from manifest import ManifestProcessor
 import orcid_records
 from register import certificate_candidates, describe, find_issue, first_author_surname, iter_register_issues
 from validation_config import (
-    as_list,
     MANDATORY_FIELDS,
     OPTIONAL_FIELDS,
     PLACEHOLDER_PATTERNS,
@@ -22,6 +21,7 @@ from validation_config import (
     is_placeholder,
     is_placeholder_certificate,
     is_placeholder_check_time,
+    people,
     ORCID_FORMAT,
     DOI_FORMAT,
     ISO_DATE_FORMAT,
@@ -280,21 +280,9 @@ class CodecheckValidator:
         (field, label, ORCID, name) of the codecheckers and paper authors that have an ORCID; field names as in the
         structure checks. The ORCID is the value from the YAML (not always text).
         """
-        entries = []
-        codechecker = as_list(self.config.get('codechecker', {}))
-        if isinstance(codechecker, list):
-            several = len(codechecker) > 1
-            for i, person in enumerate(codechecker):
-                if isinstance(person, dict) and person.get('ORCID'):
-                    field, label = (f'codechecker[{i}]', f'Codechecker {i+1}') if several else ('codechecker', 'Codechecker')
-                    entries.append((f'{field}.ORCID', label, person['ORCID'], person.get('name')))
-        paper = self.config.get('paper', {})
-        authors = paper.get('authors', []) if isinstance(paper, dict) else []
-        if isinstance(authors, list):
-            for i, author in enumerate(authors):
-                if isinstance(author, dict) and author.get('ORCID'):
-                    entries.append((f'paper.authors[{i}].ORCID', f'Author {i+1}', author['ORCID'], author.get('name')))
-        return entries
+        return [(f'{field}.ORCID', label, person['ORCID'], person.get('name'))
+                for role in ('codechecker', 'author') for field, label, person in people(self.config, role)
+                if isinstance(person, dict) and person.get('ORCID')]
 
     def validate_orcids(self) -> bool:
         """
@@ -475,20 +463,20 @@ class CodecheckValidator:
                 suggestion="Add at least one author with name and ORCID"
             ))
         else:
-            for i, author in enumerate(authors):
+            for field, label, author in people(self.config, 'author'):
                 if not isinstance(author, dict):
                     self.issues.append(ValidationIssue(
                         level='error',
-                        field=f'paper.authors[{i}]',
-                        message=f"Author {i+1} must be a dictionary",
+                        field=field,
+                        message=f"{label} must be a dictionary",
                         suggestion="Use format: {name: '...', ORCID: '...'}"
                     ))
                     has_errors = True
                 elif 'name' not in author or not author['name']:
                     self.issues.append(ValidationIssue(
                         level='error',
-                        field=f'paper.authors[{i}].name',
-                        message=f"Author {i+1} is missing name",
+                        field=f'{field}.name',
+                        message=f"{label} is missing name",
                         suggestion="Add name field for each author"
                     ))
                     has_errors = True
@@ -510,8 +498,7 @@ class CodecheckValidator:
             return False
 
         # The specification allows a single codechecker or a list of codecheckers
-        codechecker = as_list(codechecker)
-        if not isinstance(codechecker, list):
+        if not isinstance(codechecker, (dict, list)):
             self.issues.append(ValidationIssue(
                 level='error',
                 field='codechecker',
@@ -521,13 +508,12 @@ class CodecheckValidator:
             return False
 
         valid = True
-        for i, person in enumerate(codechecker):
-            field = f'codechecker[{i}]' if len(codechecker) > 1 else 'codechecker'
+        for field, label, person in people(self.config, 'codechecker'):
             if not isinstance(person, dict):
                 self.issues.append(ValidationIssue(
                     level='error',
                     field=field,
-                    message=f"Codechecker must be a dictionary, got {type(person).__name__}",
+                    message=f"{label} must be a dictionary, got {type(person).__name__}",
                     suggestion="Structure codechecker as: {name: '...', ORCID: '...'}"
                 ))
                 valid = False
@@ -537,7 +523,7 @@ class CodecheckValidator:
                 self.issues.append(ValidationIssue(
                     level='error',
                     field=f'{field}.name',
-                    message="Codechecker name is missing",
+                    message=f"{label} name is missing",
                     suggestion="Add name field for codechecker"
                 ))
                 valid = False
@@ -547,7 +533,7 @@ class CodecheckValidator:
                 self.issues.append(ValidationIssue(
                     level='warning',
                     field=f'{field}.ORCID',
-                    message="Codechecker ORCID is missing",
+                    message=f"{label} ORCID is missing",
                     suggestion="Add ORCID field for codechecker"
                 ))
 

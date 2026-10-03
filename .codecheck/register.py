@@ -8,7 +8,7 @@ from typing import Dict, Iterable, Iterator, List, Optional
 
 import requests
 
-from validation_config import CERTIFICATE_ID, as_list, normalise, split_name
+from validation_config import CERTIFICATE_ID, normalise, people, split_name
 
 REGISTER_ISSUES_URL = "https://api.github.com/repos/codecheckers/register/issues"
 MAX_PAGES = 20  # 100 issues per page
@@ -61,9 +61,8 @@ def surname(name: str) -> str:
 
 def first_author_surname(config) -> Optional[str]:
     """Surname of the first author of the paper in a `codecheck.yml` configuration, or None."""
-    paper = config.get("paper") if isinstance(config, dict) else None
-    authors = as_list(paper.get("authors")) if isinstance(paper, dict) else []
-    name = authors[0].get("name") if authors and isinstance(authors[0], dict) else None
+    first = next((person.entry for person in people(config, "author")), None)
+    name = first.get("name") if isinstance(first, dict) else None
     return (surname(name) or None) if isinstance(name, str) else None
 
 

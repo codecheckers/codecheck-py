@@ -31,7 +31,7 @@ from config_io import write_config_fields
 from doi_metadata import doi_from
 from manifest import existing_file, find_outputs_dir, manifest_file_paths
 from orcid_records import check_digit_ok
-from validation_config import (as_list, is_placeholder, is_placeholder_certificate, is_placeholder_check_time,
+from validation_config import (is_placeholder, is_placeholder_certificate, is_placeholder_check_time, people,
                                split_name)
 
 URLS = {False: "https://zenodo.org", True: "https://sandbox.zenodo.org"}
@@ -157,14 +157,16 @@ def build_metadata(conf: Dict, outputs_license: Optional[str] = None) -> Tuple[D
     certificate = str(conf.get("certificate") or "")
     if not certificate or is_placeholder_certificate(certificate):
         warnings.append(f"certificate '{certificate}' is a placeholder")
-    codecheckers = as_list(conf.get("codechecker")) or []
-    creators = [c for c in map(creator, codecheckers) if c]
-    if not creators:
+    codecheckers = people(conf, "codechecker")
+    creators = [c for c in (creator(p.entry) for p in codecheckers) if c]
+    if conf.get("codechecker") and not codecheckers:
+        warnings.append("codechecker must be a mapping or a list of mappings with name and ORCID")
+    elif not creators:
         warnings.append("no codechecker with a name")
-    for person in codecheckers:
+    for label, person in ((p.label, p.entry) for p in codecheckers):
         if isinstance(person, dict) and person.get("ORCID") and not check_digit_ok(str(person["ORCID"])):
-            warnings.append(f"ORCID '{person['ORCID']}' of {person.get('name')} is not valid (plain 0000-0000-0000-0000)"
-                            f", it is left out")
+            warnings.append(f"ORCID '{person['ORCID']}' of {person.get('name') or label} is not valid "
+                            f"(plain 0000-0000-0000-0000), it is left out")
     check_time = str(conf.get("check_time") or "")
     if re.match(r"^\d{4}-\d{2}-\d{2}", check_time) and not is_placeholder_check_time(check_time):
         publication_date = check_time[:10]

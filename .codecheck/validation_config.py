@@ -4,7 +4,7 @@ Configuration constants for codecheck.yml validation, and small helpers shared b
 
 import re
 import unicodedata
-from typing import Tuple
+from typing import Any, List, NamedTuple, Tuple
 
 # Directories (relative to the repository root) that can contain the CODECHECK files and the `outputs/` directory,
 # in order of preference: `.codecheck/` (default) or `codecheck/`
@@ -101,3 +101,35 @@ def split_name(name) -> Tuple[str, str]:
         return given, family
     *given, family = name.split() or [""]
     return " ".join(given), family
+
+
+class Person(NamedTuple):
+    """An entry of `codechecker` or `paper.authors` with its field name and label for reports."""
+    field: str
+    label: str
+    entry: Any  # a mapping if well-formed
+
+
+# role: (path in codecheck.yml, label, whether a single mapping is allowed instead of a list)
+ROLES = {"codechecker": ("codechecker", "Codechecker", True), "author": ("paper.authors", "Author", False)}
+
+
+def people(config, role: str) -> List[Person]:
+    """
+    The entries of `codechecker` (role `codechecker`: a mapping or a list, as the specification allows) or of
+    `paper.authors` (role `author`: a list), with the field names of the validation reports: `codechecker` /
+    `Codechecker` for a single codechecker, `codechecker[i]` / `Codechecker i+1` for several, `paper.authors[i]` /
+    `Author i+1`. Entries may be malformed (no mapping); empty if the section is missing or has the wrong type. The one
+    rule for these sections, used by the structure checks too.
+    """
+    path, name, single_allowed = ROLES[role]
+    section, _, key = path.rpartition(".")
+    parent = config.get(section) if section and isinstance(config, dict) else config
+    entries = parent.get(key) if isinstance(parent, dict) else None
+    if single_allowed and isinstance(entries, dict):
+        return [Person(path, name, entries)]
+    if not isinstance(entries, list):
+        return []
+    if single_allowed and len(entries) == 1:
+        return [Person(path, name, entries[0])]
+    return [Person(f"{path}[{i}]", f"{name} {i + 1}", entry) for i, entry in enumerate(entries)]

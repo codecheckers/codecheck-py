@@ -258,3 +258,20 @@ def test_check_time_valid_and_invalid_are_no_placeholders(tmp_path):
     validator = make(tmp_path, {'check_time': '03.10.2026'})
     assert validator.validate_check_time() is False
     assert ('error', 'check_time') in issues(validator)
+
+
+
+def test_codechecker_messages_are_numbered(tmp_path):
+    validator = make(tmp_path, {'codechecker': [{'name': 'A', 'ORCID': '0000-0002-1825-0097'}, {'ORCID': 'x'}, 'bad']})
+    assert validator.validate_codechecker_structure() is False
+    assert [(i.field, i.message) for i in validator.issues] == [
+        ('codechecker[1].name', 'Codechecker 2 name is missing'),
+        ('codechecker[2]', 'Codechecker 3 must be a dictionary, got str')]
+
+
+def test_single_author_mapping_is_rejected_consistently(tmp_path):
+    validator = make(tmp_path, {'paper': {'title': 'T', 'reference': 'R',
+                                          'authors': {'name': 'X', 'ORCID': '0123-4567-8910-1112'}}})
+    validator.validate_paper_structure()
+    validator.validate_orcids()
+    assert [i.message for i in validator.issues] == ['Authors must be a list, got dict']

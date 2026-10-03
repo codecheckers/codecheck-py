@@ -95,7 +95,7 @@ def test_surname(name, expected):
 
 @pytest.mark.parametrize('config,expected', [
     ({'paper': {'authors': [{'name': 'Lukas Tabandeh'}, {'name': 'Manuel Spitschan'}]}}, 'Tabandeh'),
-    ({'paper': {'authors': {'name': 'Single Author'}}}, 'Author'),
+    ({'paper': {'authors': {'name': 'Single Author'}}}, None),  # authors must be a list
     ({'paper': {'authors': []}}, None),
     ({'paper': {'authors': ['no mapping']}}, None),
     ({'paper': {'authors': [{'name': ''}]}}, None),
