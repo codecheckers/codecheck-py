@@ -220,6 +220,10 @@ def test_notebook_to_pdf_copies_outputs_and_hides_copy_report(pdf_workspace, tmp
     shutil.copy2(Path(__file__).parent.parent / '.codecheck' / 'notebook_to_pdf.sh', codecheck_dir)
     (pdf_workspace / 'data').mkdir()
     (pdf_workspace / 'data' / 'results.csv').write_text('col1,col2\n5,6\n')  # newer than the copy in outputs/
+    config_file = pdf_workspace / 'codecheck.yml'
+    config = yaml.safe_load(config_file.read_text())
+    config['summary'] = 'Details at https://example.org/details_page.'
+    config_file.write_text(yaml.dump(config))
     bin_dir = tmp_path / 'bin'  # stand-in for typst: only the Markdown step is tested here
     bin_dir.mkdir()
     (bin_dir / 'typst').write_text('#!/bin/sh\nexit 0\n')
@@ -233,6 +237,8 @@ def test_notebook_to_pdf_copies_outputs_and_hides_copy_report(pdf_workspace, tmp
     assert (codecheck_dir / 'outputs' / 'data' / 'results.csv').read_text() == 'col1,col2\n5,6\n'
     markdown = (codecheck_dir / 'codecheck.md').read_text()
     assert '## Manifest files' in markdown and 'Copied' not in markdown
+    assert 'Details at <https://example.org/details_page>.' in markdown  # plain URLs become links
+    assert '[CODECHECK](https://codecheck.org.uk/)' in markdown  # links stay as they are
     assert not (codecheck_dir / 'codecheck.executed.ipynb').exists()
 
 

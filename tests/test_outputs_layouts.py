@@ -104,7 +104,7 @@ def test_codecheck_class(layout):
     assert check.validate_manifest_files() == (True, [])
     assert 'Total size**: 12 bytes' in check.manifest_summary().data
     assert '`a.csv` | table | 12' in check.files().data
-    assert 'Lines | 3' in check.manifest_files().data  # file info is read from outputs/ (cwd is the layout dir)
+    assert 'Lines | 3' in check.manifest_files(file_info=True).data  # file info is read from outputs/ (cwd is the layout dir)
     passed, issues = check.validate(online=False)
     assert not [i for i in issues if i.field == 'manifest' and i.level == 'error' and 'outputs' in i.message]
 
@@ -119,7 +119,7 @@ def test_codecheck_class_from_repository_root(layout, monkeypatch):
     assert check.outputs_dir == (root / name / 'outputs').resolve()
     assert check.outputs_link == f'{name}/outputs'
     assert '`a.csv` | table | 12' in check.files().data
-    md = check.manifest_files().data
+    md = check.manifest_files(file_info=True).data
     assert 'Lines | 3' in md
     assert f'(<{name}/outputs/b.png>)' in md
 
@@ -154,7 +154,7 @@ def test_symlinked_file_in_outputs(layout):
     (root / name / 'outputs' / 'data' / 'a.csv').symlink_to(root / 'data' / 'a.csv')
     check = Codecheck()
     assert '`a.csv` | table | 8' in check.files().data
-    assert 'Lines | 2' in check.manifest_files().data
+    assert 'Lines | 2' in check.manifest_files(file_info=True).data
 
 
 def test_missing_file_message_uses_link(layout, monkeypatch):

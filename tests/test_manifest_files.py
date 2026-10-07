@@ -50,10 +50,17 @@ def test_every_file_gets_a_section_and_nothing_raises(workspace):
 
 
 def test_file_info_for_every_type(workspace):
-    md = Codecheck().manifest_files().data
+    md = Codecheck().manifest_files(file_info=True).data
     for name in ['data.csv', 'long.log', 'plot.png', 'archive.zip', 'figure.eps', 'sub/plot.svg']:
         sec = section(md, name)
         assert "SHA-256 | `" in sec and "Size (b) |" in sec and "Modified |" in sec
+
+
+def test_file_info_is_not_shown_by_default(workspace):
+    md = Codecheck().manifest_files().data
+    assert "Item | Value" not in md and "SHA-256" not in md
+    sec = section(md, 'long.log')
+    assert sec.startswith("\nComment: *comment long.log*") and "~~~" in sec
 
 
 def test_missing_file_is_marked_not_raised(workspace):
@@ -68,13 +75,13 @@ def test_files_table_marks_missing_file(workspace):
 
 
 def test_tsv_is_split_into_columns(workspace):
-    sec = section(Codecheck().manifest_files().data, 'data.tsv')
-    assert "Columns | 2" in sec and "| x " in sec and "| y " in sec
+    sec = section(Codecheck().manifest_files(file_info=True).data, 'data.tsv')
+    assert "Columns | 2" in sec and "|   x |   y |" in sec and "|   7 |   8 |" in sec
 
 
 def test_excel_summary(workspace):
-    sec = section(Codecheck().manifest_files(head=2).data, 'table.xlsx')
-    assert "Sheets | `Sheet1`" in sec and "Columns (first sheet) | 2" in sec and "First 2 rows" in sec
+    sec = section(Codecheck().manifest_files(file_info=True).data, 'table.xlsx')
+    assert "Sheets | `Sheet1`" in sec and "Columns (first sheet) | 2" in sec and "Complete table" in sec
 
 
 def test_broken_excel_reports_error_box(workspace):
@@ -83,7 +90,7 @@ def test_broken_excel_reports_error_box(workspace):
 
 
 def test_text_is_truncated_with_note(workspace):
-    sec = section(Codecheck().manifest_files(max_lines=10).data, 'long.log')
+    sec = section(Codecheck().manifest_files(max_lines=10, file_info=True).data, 'long.log')
     assert "line 9" in sec and "line 10\n" not in sec
     assert "490 more lines omitted" in sec and "Lines | 500" in sec
 
@@ -105,7 +112,7 @@ def test_invalid_json_falls_back_to_text(workspace):
 
 
 def test_images_are_embedded(workspace):
-    md = Codecheck().manifest_files().data
+    md = Codecheck().manifest_files(file_info=True).data
     assert "![comment plot.png](<outputs/plot.png>)" in section(md, 'plot.png')
     assert "Dimensions | 24 x 16 px" in section(md, 'plot.png')
     assert "(<outputs/sub/plot.svg>)" in section(md, 'sub/plot.svg')
@@ -165,7 +172,7 @@ def test_malformed_manifest_entries_do_not_raise(workspace):
     ]}))
     check = Codecheck()
     md = check.manifest_files().data
-    assert "### `data.csv`" in md and "Author comment: *42*" in md and "### `data.tsv`" in md
+    assert "### `data.csv`" in md and "Comment: *42*" in md and "### `data.tsv`" in md
     assert md.count("### `") == 2
     rows = [line for line in check.files().data.splitlines() if line.startswith("`")]
     assert len(rows) == 2 and rows[0].startswith("`data.csv` | 42 |")
@@ -184,11 +191,11 @@ def test_path_outside_of_outputs_is_not_read(workspace):
 
 def test_user_nrows_and_delimiter_are_honoured(workspace):
     check = Codecheck()
-    assert "Columns (first sheet) | 2" in section(check.manifest_files(nrows=1, head=5).data, 'table.xlsx')
+    assert "Columns (first sheet) | 2" in section(check.manifest_files(nrows=1, head=5, file_info=True).data, 'table.xlsx')
     (workspace / 'outputs' / 'semi.csv').write_text('a;b\n1;2\n')
     conf = workspace.parent / 'codecheck.yml'
     conf.write_text(yaml.dump({'manifest': [{'file': 'semi.csv'}]}))
-    assert "Columns | 2" in Codecheck().manifest_files(delimiter=';').data
+    assert "|   a |   b |" in Codecheck().manifest_files(delimiter=";").data
 
 
 def test_excel_file_is_closed(workspace, monkeypatch):

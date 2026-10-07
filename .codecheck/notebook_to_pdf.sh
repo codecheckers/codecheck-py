@@ -16,10 +16,12 @@ echo "[CODECHECK - Py] Converting $NOTEBOOK.ipynb to Markdown..."
 # Execute first, then convert: nbconvert removes tagged outputs before it executes, so this needs two steps.
 # Outputs of cells tagged `remove-output` (e.g. the copy report for the codechecker) are not in the certificate.
 EXECUTED="${NOTEBOOK}.executed.ipynb"
+trap 'rm -f "$EXECUTED"' EXIT  # also after an error
 jupyter nbconvert --to notebook --execute --output "$EXECUTED" "$NOTEBOOK.ipynb"
+# Plain URLs become links in the PDF, as they are in Jupyter (Typst's Markdown renderer does not link them)
+"${PYTHON:-python3}" markdown_links.py "$EXECUTED"
 jupyter nbconvert --to markdown --no-input --no-prompt --output "$NOTEBOOK" \
     --TagRemovePreprocessor.enabled=True --TagRemovePreprocessor.remove_all_outputs_tags='["remove-output"]' "$EXECUTED"
-rm "$EXECUTED"
 
 # Wait until Markdown is created
 echo "[CODECHECK - Py] Waiting for $MARKDOWN_FILE to be created..."

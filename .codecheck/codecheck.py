@@ -230,7 +230,7 @@ File | Comment | Size (b)
             f"{multiple_name(self.conf['codechecker'])} "
             f"({self._check_time(lambda t: t.year)}). "
             f"CODECHECK Certificate {self.conf['certificate']}. "
-            f"Zenodo. {url_link(self.conf['report'])}"
+            f"CODECHECK Community on Zenodo. {url_link(self.conf['report'])}"
         )
 
     def about_codecheck(self):
@@ -294,20 +294,27 @@ This certificate confirms that the codechecker could independently reproduce the
         fence = "~" * max(3, longest + 1)
         return f"{fence}\n{text}\n{fence}\n"
 
-    def _tabular(self, path, ext, info, max_rows, max_cols, describe, head, **kwds):
-        """Extra info rows and Markdown (first rows, statistics) of a CSV/TSV/Excel file, bounded by max_rows/max_cols."""
+    def _tabular(self, path, ext, info, max_rows, max_cols, describe, head, full_rows, **kwds):
+        """
+        Extra info rows and Markdown of a CSV/TSV/Excel file: the whole table if it has fewer than `full_rows` data
+        rows, otherwise the first `head` rows and summary statistics of the first `max_rows` rows; at most `max_cols`
+        columns.
+        """
         rows = []
+        # one row more than shown in full tells whether the table is complete; `nrows` in kwds takes precedence
+        user_nrows = "nrows" in kwds
+        nrows = kwds.pop("nrows", max(max_rows, full_rows, head))
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", pd.errors.DtypeWarning)
             if ext in EXCEL_EXTENSIONS:
                 with pd.ExcelFile(path) as workbook:
                     sheets = workbook.sheet_names
-                    df = workbook.parse(**{"nrows": max_rows, **kwds})
+                    df = workbook.parse(nrows=nrows, **kwds)
                 shown = ", ".join(f"`{name}`" for name in sheets[:10])
                 rows.append(("Sheets", shown + (f", ... ({len(sheets)} in total)" if len(sheets) > 10 else "")))
                 rows.append(("Columns (first sheet)", f"{df.shape[1]:,}"))
             else:
-                read_kwds = {"nrows": max_rows, **kwds}
+                read_kwds = {"nrows": nrows, **kwds}
                 if "delimiter" not in read_kwds:  # `delimiter` is an alias of `sep` in pandas
                     read_kwds.setdefault("sep", TABULAR_SEPARATORS[ext])
                 n_cols = None
@@ -316,10 +323,16 @@ This certificate confirms that the codechecker could independently reproduce the
                     n_cols = pd.read_csv(path, **{**read_kwds, "nrows": 1}).shape[1]
                     read_kwds["usecols"] = list(range(min(n_cols, max_cols)))
                 df = pd.read_csv(path, **read_kwds)
-                rows.append(("Lines", f"{info['lines']:,}"))
+                if info:
+                    rows.append(("Lines", f"{info['lines']:,}"))
                 rows.append(("Columns", f"{n_cols if n_cols is not None else df.shape[1]:,}"))
         df = df.iloc[:, :max_cols]
 
+        if (nrows is None or len(df) < nrows) and len(df) < full_rows:  # the whole table is read and short
+            return rows, f"""**Complete table** (up to {max_cols} columns):
+
+{df.to_markdown(index=False)}
+"""
         body = ""
         if head:
             body += f"""**First {min(head, len(df))} rows** (up to {max_cols} columns):
@@ -327,10 +340,11 @@ This certificate confirms that the codechecker could independently reproduce the
 {df.head(head).to_markdown(index=False)}
 
 """
+        stats = df if user_nrows else df.head(max_rows)
         if describe and len(df.columns) > 0:
-            body += f"""**Column summary statistics** (first {len(df)} rows, up to {max_cols} columns):
+            body += f"""**Column summary statistics** (first {len(stats)} rows, up to {max_cols} columns):
 
-{df.describe().transpose().to_markdown(floatfmt=DESCRIBE_FLOATFMT)}
+{stats.describe().transpose().to_markdown(floatfmt=DESCRIBE_FLOATFMT)}
 """
         return rows, body
 
@@ -375,44 +389,52 @@ This certificate confirms that the codechecker could independently reproduce the
         alt = re.sub(r"[\[\]\n]", " ", comment or fname)
         return rows, f"![{alt}](<{self.outputs_link}/{fname}>)\n"
 
-    def _render_manifest_entry(self, entry, max_rows, max_cols, max_lines, describe, head, **kwds):
+    @staticmethod
+    def _entry_heading(fname, comment):
+        """Heading of a manifest entry with the comment from the manifest."""
+        return f"### `{fname}`\n" + (f"Comment: *{comment}*" if comment else " ")
+
+    def _render_manifest_entry(self, entry, max_rows, max_cols, max_lines, describe, head, full_rows, file_info,
+                               **kwds):
         """Markdown section for one manifest entry; problems are reported in the section, they never raise."""
         fname = str(entry["file"])
         comment = str(entry["comment"]) if entry.get("comment") else None
         path = output_path(self.outputs_dir, fname)
         ext = op.splitext(fname)[1].lower()
-        section = f"""### `{fname}`
-{('Author comment: *' + comment + '*') if comment else ' '}
-
-"""
+        section = self._entry_heading(fname, comment) + "\n\n"
         if path is None:
             return section + f"> **Not shown:** the path is not inside the `{self.outputs_link}/` directory.\n"
         if not path.is_file():
             return section + f"> **File missing:** `{self.outputs_link}/{fname}` does not exist.\n"
         try:
-            info = self._file_info(path)  # read the file once for size, checksum and line count
+            # read the file once for size, checksum and line count; text files need the size and line count anyway
+            info = self._file_info(path) if file_info or ext in TEXT_EXTENSIONS else None
             if ext in TABULAR_SEPARATORS or ext in EXCEL_EXTENSIONS:
-                rows, body = self._tabular(path, ext, info, max_rows, max_cols, describe, head, **kwds)
+                rows, body = self._tabular(path, ext, info, max_rows, max_cols, describe, head, full_rows, **kwds)
             elif ext in TEXT_EXTENSIONS:
                 rows, body = self._text(path, ext, info, max_lines)
             elif ext in IMAGE_EXTENSIONS:
                 rows, body = self._image(fname, comment, path, ext)
             else:
                 rows, body = [], NO_PREVIEW.get(ext, NO_PREVIEW_DEFAULT) + "\n"
-            return section + self._info_table(self._info_rows(info) + rows) + "\n" + body
+            table = self._info_table(self._info_rows(info) + rows) + "\n" if file_info else ""
+            return section + table + body
         except Exception as e:  # one broken file must not break the whole certificate
             message = re.sub(r"\s+", " ", f"{type(e).__name__}: {e}")[:300]
             return section + f"> **Could not display this file:** {message}\n"
 
-    def manifest_files(self, max_rows=15, max_cols=50, max_lines=50, describe=True, head=0, extensions=None, **kwds):
+    def manifest_files(self, max_rows=15, max_cols=50, max_lines=50, describe=True, head=10, full_rows=20,
+                       extensions=None, file_info=False, **kwds):
         """
         Markdown section for every file in the manifest, shown according to the file type. Each section starts with
-        the author comment and a table with file size, modification time and SHA-256 checksum.
+        the comment from the manifest and, with `file_info=True`, a table with file size, modification time, SHA-256
+        checksum and the information listed below (number of lines, columns, image dimensions, ...).
 
-        - `.csv`, `.tsv`, `.xlsx`: number of lines/columns, optionally the first rows and summary statistics
+        - `.csv`, `.tsv`, `.xlsx`: the whole table if it has fewer than `full_rows` data rows, otherwise the first
+          `head` rows and summary statistics
         - `.txt`, `.log`, `.out`, `.Rout`, `.md`, `.json`: the first lines (JSON is pretty-printed)
         - `.png`, `.jpg`, `.gif`, `.svg`, `.pdf`: the image (first page for PDFs)
-        - anything else: only the file information
+        - anything else: a note that there is no preview
 
         Missing or broken files are reported in the section instead of raising an error. The size of the output does
         not depend on the size of the files.
@@ -420,25 +442,31 @@ This certificate confirms that the codechecker could independently reproduce the
         Parameters
         ----------
         max_rows: int
-            Number of rows to read from tables for the statistics. Defaults to `15`.
+            Number of rows of a table that are summarised by the statistics. Defaults to `15`.
         max_cols: int
             Limit of table columns to display. Defaults to `50`.
         max_lines: int
             Limit of lines to display of text and JSON files. Defaults to `50`.
         describe: bool
-            Whether to show summary statistics of tables. Defaults to `True`.
+            Whether to show summary statistics of tables that are not shown completely. Defaults to `True`.
         head: int
-            Number of first rows of tables to show (at most `max_rows`). Defaults to `0` (not shown).
+            Number of first rows to show of tables that are not shown completely. Defaults to `10`.
+        full_rows: int
+            Tables with fewer data rows are shown completely, without statistics. Defaults to `20`.
         extensions: sequence, optional
             Only show files with these extensions (in lower case, e.g. `('.csv',)`). Defaults to all files.
+        file_info: bool
+            Whether to show the table with the file information (size, modification time, checksum, ...) of every
+            file. Defaults to `False` (not shown).
         **kwds
             Additional arguments (e.g. index_col=False) that will be handed over to Panda's `read_csv`/`read_excel`
-            function. Arguments given here (e.g. `nrows`, `usecols`) take precedence over `max_rows` and `max_cols`.
+            function. Arguments given here (e.g. `nrows`, `usecols`) take precedence over the row and column limits.
             They have to be valid for all table types in the manifest, use `extensions` to handle e.g. CSV and Excel
             files with different arguments.
         """
         sections = [
-            self._render_manifest_entry(entry, max_rows, max_cols, max_lines, describe, head, **kwds)
+            self._render_manifest_entry(entry, max_rows, max_cols, max_lines, describe, head, full_rows, file_info,
+                                        **kwds)
             for entry in self.conf["manifest"]
             # malformed entries are reported by the validation, they are skipped here
             if isinstance(entry, dict) and entry.get("file")
@@ -446,10 +474,10 @@ This certificate confirms that the codechecker could independently reproduce the
         ]
         return Markdown("\n\n".join(sections))
 
-    def csv_files(self, max_rows=15, max_cols=50, describe=True, head=0, **kwds):
+    def csv_files(self, max_rows=15, max_cols=50, describe=True, head=10, full_rows=20, file_info=False, **kwds):
         """Like `manifest_files()`, but only for the `.csv` files in the manifest (see there for the arguments)."""
         return self.manifest_files(max_rows=max_rows, max_cols=max_cols, describe=describe, head=head,
-                                   extensions=(".csv",), **kwds)
+                                   full_rows=full_rows, extensions=(".csv",), file_info=file_info, **kwds)
 
     def _git(self, *args):
         """Run git in the directory of `codecheck.yml`; raises OSError or TimeoutExpired if git is not available."""
@@ -511,11 +539,10 @@ This certificate confirms that the codechecker could independently reproduce the
             if not op.splitext(fname)[1].lower() in extensions:
                 continue
             comment = str(entry.get("comment") or "")
-            heading = f"""### `{fname}`
-{('Author comment: *' + comment + '*') if comment else ' '}"""
+            heading = self._entry_heading(fname, comment)
             full_text.extend(
                 [
-                    f"{heading}![Author comment: {comment}](<{self.outputs_link}/{fname}>)",
+                    f"{heading}![Comment: {comment}](<{self.outputs_link}/{fname}>)",
                     "",
                 ]
             )

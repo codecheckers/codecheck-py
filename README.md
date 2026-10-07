@@ -110,7 +110,8 @@ sh notebook_to_pdf.sh
 
 The script runs the notebook (hiding the code cells, and the output of cells tagged
 `remove-output`) into `codecheck.md` with `jupyter nbconvert`, and then compiles `codecheck.typ` with `typst` into
-`codecheck.pdf`. It stops with an error if `codecheck.md` is larger than 5 MB
+`codecheck.pdf`. Plain URLs in Markdown cells (and in Markdown output, e.g. the summary) become links in the PDF, as
+they are in Jupyter (`markdown_links.py`; code is left alone). The notes start on a new page. It stops with an error if `codecheck.md` is larger than 5 MB
 (set `MAX_MD_BYTES` to change that limit), which usually means that very large
 output (e.g. big tables) ended up in the report.
 
@@ -172,15 +173,16 @@ In a clone of this repository, `make zenodo-reserve-sandbox`, `make zenodo-sandb
 ### Output files
 
 `check.manifest_files()` shows every file of the manifest according to its type. Each
-section starts with the author's comment and a table with the file size, modification
-time and SHA-256 checksum:
+section starts with the comment from the manifest. `file_info=True` adds a table with the
+file size, modification time, SHA-256 checksum and the type-specific details listed below
+(number of lines and columns, image dimensions, ...); it is not shown by default:
 
 | File type | What is shown |
 | --- | --- |
-| `.csv`, `.tsv`, `.xlsx` | number of lines and columns, summary statistics (`describe`) of the first `max_rows` rows (default 15) and first `max_cols` columns (default 50), optionally the first rows (`head=5`) |
+| `.csv`, `.tsv`, `.xlsx` | the whole table if it has fewer than `full_rows` data rows (default 20), otherwise the first `head` rows (default 10) and summary statistics (`describe`) of the first `max_rows` rows (default 15); at most `max_cols` columns (default 50) |
 | `.txt`, `.log`, `.out`, `.Rout`, `.md`, `.json` | the first `max_lines` lines (default 50), JSON is pretty-printed |
 | `.png`, `.jpg`, `.gif`, `.svg`, `.pdf` | the image itself (the first page of PDFs) |
-| anything else | only the file information |
+| anything else | a note that there is no preview (with `file_info=True` the file information) |
 
 The report stays small even for huge files, and a missing or broken file is reported in
 its section instead of stopping the build. Additional arguments are passed to
@@ -188,7 +190,8 @@ its section instead of stopping the build. Additional arguments are passed to
 
 ```python
 check.manifest_files(max_rows=50, max_cols=20, index_col=False, header=None)
-check.manifest_files(describe=False, head=5)   # first 5 rows instead of statistics
+check.manifest_files(describe=False, head=5)   # long tables: first 5 rows, no statistics
+check.manifest_files(file_info=True)           # with size, modification time and checksum
 check.csv_files()                              # only the CSV files
 check.git_info()                               # the git commit the check is based on
 ```

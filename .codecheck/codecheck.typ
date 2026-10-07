@@ -104,7 +104,7 @@
       center,
       h
     )
-  } else if h.level == 2 and (h.body == [Manifest files] or h.body == [Acknowledgements]) {
+  } else if h.level == 2 and (h.body == [CODECHECKER notes] or h.body == [Manifest files] or h.body == [Acknowledgements]) {
     pagebreak()
     h
   } else {

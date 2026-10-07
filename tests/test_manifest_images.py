@@ -31,7 +31,7 @@ def make_workspace(tmp_path, monkeypatch, image_dir, names, subdir='.codecheck')
 @pytest.mark.parametrize('name', SUPPORTED_IMAGES)
 def test_supported_formats_are_embedded(tmp_path, monkeypatch, image_dir, name):
     make_workspace(tmp_path, monkeypatch, image_dir, [name])
-    sec = section(Codecheck().manifest_files().data, name)
+    sec = section(Codecheck().manifest_files(file_info=True).data, name)
     assert f"![image {name}](<outputs/{name}>)" in sec
     assert "SHA-256 | `" in sec
     assert "No preview available" not in sec
@@ -40,25 +40,25 @@ def test_supported_formats_are_embedded(tmp_path, monkeypatch, image_dir, name):
 @pytest.mark.parametrize('name', RASTER_WITH_DIMENSIONS)
 def test_raster_images_report_dimensions(tmp_path, monkeypatch, image_dir, name):
     make_workspace(tmp_path, monkeypatch, image_dir, [name])
-    assert "Dimensions | 24 x 16 px" in section(Codecheck().manifest_files().data, name)
+    assert "Dimensions | 24 x 16 px" in section(Codecheck().manifest_files(file_info=True).data, name)
 
 
 @pytest.mark.parametrize('name', ['vector.svg', 'doc.pdf'])
 def test_svg_and_pdf_have_no_pixel_dimensions(tmp_path, monkeypatch, image_dir, name):
     make_workspace(tmp_path, monkeypatch, image_dir, [name])
-    assert "Dimensions" not in section(Codecheck().manifest_files().data, name)
+    assert "Dimensions" not in section(Codecheck().manifest_files(file_info=True).data, name)
 
 
 def test_pdf_says_that_first_page_is_shown(tmp_path, monkeypatch, image_dir):
     make_workspace(tmp_path, monkeypatch, image_dir, ['doc.pdf'])
-    assert "Preview | first page" in section(Codecheck().manifest_files().data, 'doc.pdf')
+    assert "Preview | first page" in section(Codecheck().manifest_files(file_info=True).data, 'doc.pdf')
 
 
 @pytest.mark.parametrize('name,hint', [('scan.tiff', 'TIFF images'), ('web.webp', 'WEBP images'),
                                        ('old.bmp', 'BMP images'), ('figure.eps', 'EPS files')])
 def test_formats_typst_cannot_include_only_show_info_and_hint(tmp_path, monkeypatch, image_dir, name, hint):
     make_workspace(tmp_path, monkeypatch, image_dir, [name])
-    sec = section(Codecheck().manifest_files().data, name)
+    sec = section(Codecheck().manifest_files(file_info=True).data, name)
     assert f"Typst cannot include {hint}" in sec and "convert the figure to" in sec
     assert "![" not in sec and "SHA-256 | `" in sec
 
@@ -67,7 +67,7 @@ def test_postscript_is_not_called_eps(tmp_path, monkeypatch, image_dir):
     make_workspace(tmp_path, monkeypatch, image_dir, ['figure.eps'])
     shutil.copy2(image_dir / 'figure.eps', tmp_path / '.codecheck' / 'outputs' / 'figure.ps')
     (tmp_path / 'codecheck.yml').write_text(yaml.dump({'manifest': [{'file': 'figure.ps'}]}))
-    sec = section(Codecheck().manifest_files().data, 'figure.ps')
+    sec = section(Codecheck().manifest_files(file_info=True).data, 'figure.ps')
     assert "No preview available for this file type" in sec and "EPS" not in sec
 
 
@@ -76,7 +76,7 @@ def test_image_without_pillow_still_embedded(tmp_path, monkeypatch, image_dir):
     make_workspace(tmp_path, monkeypatch, image_dir, ['base.png'])
     monkeypatch.setitem(sys.modules, 'PIL', None)
     monkeypatch.setitem(sys.modules, 'PIL.Image', None)
-    sec = section(Codecheck().manifest_files().data, 'base.png')
+    sec = section(Codecheck().manifest_files(file_info=True).data, 'base.png')
     assert "Dimensions" not in sec and "(<outputs/base.png>)" in sec
 
 
@@ -85,7 +85,7 @@ def test_alt_text_cannot_break_markdown(tmp_path, monkeypatch, image_dir):
     (tmp_path / 'codecheck.yml').write_text(yaml.dump({
         'manifest': [{'file': 'base.png', 'comment': 'a [bracket]\nand a newline'}],
     }))
-    sec = section(Codecheck().manifest_files().data, 'base.png')
+    sec = section(Codecheck().manifest_files(file_info=True).data, 'base.png')
     assert "![a  bracket  and a newline](<outputs/base.png>)" in sec
 
 

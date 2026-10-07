@@ -51,7 +51,7 @@ def test_report_parts(workspace):
     table = check.summary_table().data
     assert 'Ann Author (ORCID: 0000-0002-0024-5046), No Orcid' in table and '2023-11-15' in table
     assert check.summary().data == 'All   figures   reproduced.'
-    assert 'Chris Checker (2023). CODECHECK Certificate 2023-001.' in check.citation().data
+    assert 'Chris Checker (2023). CODECHECK Certificate 2023-001. CODECHECK Community on Zenodo.' in check.citation().data
     assert 'independently reproduce' in check.about_codecheck().data
     assert check.session_info().data.startswith('```bash')
     files = check.files().data
