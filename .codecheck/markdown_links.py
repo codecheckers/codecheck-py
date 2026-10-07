@@ -6,10 +6,9 @@ the PDF while it is a link in the notebook. `link_urls()` writes such URLs as au
 leaving code, links, images, HTML tags and link reference definitions alone. Run on the executed notebook before the
 conversion to Markdown (see `notebook_to_pdf.sh`): `python markdown_links.py codecheck.executed.ipynb`.
 """
+import json
 import re
 import sys
-
-import nbformat
 
 # Parts of the text that are left alone, then the plain URLs; the first alternative that matches wins
 _TOKEN = re.compile(
@@ -81,17 +80,28 @@ def link_urls(markdown):
     return "".join(out)
 
 
-def link_notebook(path):
-    """Write the plain URLs in the Markdown cells and Markdown outputs of the notebook at `path` as links."""
-    notebook = nbformat.read(path, as_version=4)
-    for cell in notebook.cells:
-        if cell.cell_type == "markdown":
-            cell.source = link_urls(cell.source)
-        for output in cell.get("outputs", []):
-            if "text/markdown" in output.get("data", {}):
-                output.data["text/markdown"] = link_urls(output.data["text/markdown"])
-    nbformat.write(notebook, path)
+def _linked(source):
+    """`link_urls()` for a notebook text field, a string or a list of lines."""
+    return link_urls("".join(source) if isinstance(source, list) else source)
 
+
+def link_notebook(path):
+    """
+    Write the plain URLs in the Markdown cells and Markdown outputs of the notebook at `path` as links. Only uses the
+    standard library (no nbformat): the script may run with another Python than Jupyter (e.g. an activated venv).
+    """
+    with open(path, encoding="utf-8") as f:
+        notebook = json.load(f)
+    for cell in notebook.get("cells", []):
+        if cell.get("cell_type") == "markdown":
+            cell["source"] = _linked(cell["source"])
+        for output in cell.get("outputs", []):
+            data = output.get("data", {})
+            if "text/markdown" in data:
+                data["text/markdown"] = _linked(data["text/markdown"])
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(notebook, f, ensure_ascii=False, indent=1)
+        f.write("\n")
 
 if __name__ == "__main__":
     for notebook_path in sys.argv[1:]:

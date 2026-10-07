@@ -1,4 +1,8 @@
 """Plain URLs in Markdown become links in the PDF, as they are in Jupyter (markdown_links.py)."""
+import subprocess
+import sys
+from pathlib import Path
+
 import nbformat
 import pytest
 
@@ -71,3 +75,13 @@ def test_notebook_markdown_cells_and_outputs(tmp_path):
     outputs = cells[1].outputs
     assert outputs[0].text == 'https://example.org/stream'
     assert outputs[1].data == {'text/markdown': 'Summary <https://example.org/b>', 'text/plain': 'https://example.org/p'}
+
+
+def test_script_runs_without_site_packages(tmp_path):
+    """notebook_to_pdf.sh may run it with another Python than Jupyter (e.g. a venv without nbformat)."""
+    path = tmp_path / 'nb.ipynb'
+    nbformat.write(nbformat.v4.new_notebook(cells=[nbformat.v4.new_markdown_cell('See https://example.org')]), path)
+    script = Path(__file__).parent.parent / '.codecheck' / 'markdown_links.py'
+    result = subprocess.run([sys.executable, '-S', str(script), str(path)], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert nbformat.read(path, as_version=4).cells[0].source == 'See <https://example.org>'
