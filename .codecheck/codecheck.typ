@@ -29,6 +29,9 @@
   baseline: 3pt
 )
 
+// code blocks (logs, file contents, session info) smaller than the text: about 110 characters fit in a line
+#show raw.where(block: true): set text(size: 6.5pt)
+
 #show raw.where(block: true): block.with(
   fill: luma(248),
   inset: 10pt,
